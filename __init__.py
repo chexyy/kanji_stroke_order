@@ -182,6 +182,10 @@ def inject_drawing_canvas():
         const label = document.createElement('div');
         label.textContent = 'Draw the kanji here:';
         label.style.marginBottom = '8px';
+
+        // --- Force a system-UI button-like font on the label ---
+        label.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+        label.style.fontWeight = '600';  // similar weight to the top/bottom buttons
         container.appendChild(label);
 
         const canvas = document.createElement('canvas');
@@ -195,6 +199,10 @@ def inject_drawing_canvas():
         const clearBtn = document.createElement('button');
         clearBtn.textContent = 'Clear';
         clearBtn.style.marginTop = '8px';
+
+        // --- Force same font on the Clear button ---
+        clearBtn.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+        clearBtn.style.fontWeight = '600';
         container.appendChild(clearBtn);
 
         document.body.appendChild(container);
@@ -213,15 +221,13 @@ def inject_drawing_canvas():
         const scaleX = canvas.width / 109;
         const scaleY = canvas.height / 109;
 
-        // Always animate the current stroke until correct
         let completedStrokes = 0;
 
-        // ---- NEW: Two independent animation timers ----
-        let drawProgress = 0;          // 0→1: drawing speed
-        let repeatProgress = 0;        // 0→1: loop frequency
+        let drawProgress = 0;
+        let repeatProgress = 0;
 
-        const drawDuration = 12000;     // slow stroke drawing (4.5 seconds)
-        const repeatDuration = 1600;    // fast repeat (0.8 seconds)
+        const drawDuration = 12000;
+        const repeatDuration = 1600;
 
         const dashLength = 1000;
         let lastTime = null;
@@ -239,36 +245,28 @@ def inject_drawing_canvas():
             ctx.lineWidth = 3;
             ctx.setLineDash([]);
 
-            // ---- Draw stroke outlines (same as before) ----
             for (const s of strokePaths) {
                 if (s === current) {
-                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.18)';
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
                 } else {
-                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
                 }
                 ctx.stroke(s.path);
             }
 
-            // ---- UPDATED: draw stroke numbers with variable transparency ----
             ctx.font = '8px sans-serif';
-
             for (const s of strokePaths) {
                 if (s.label_x == null) continue;
-
                 if (s === current) {
-                    // Current stroke → more visible red
                     ctx.fillStyle = 'rgba(255, 0, 0, 0.75)';
                 } else {
-                    // Other strokes → very transparent red
-                    ctx.fillStyle = 'rgba(255, 0, 0, 0.25)';
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.20)';
                 }
-
                 ctx.fillText(String(s.index), s.label_x, s.label_y);
             }
 
             ctx.restore();
         }
-
 
         function drawAnimatedStroke() {
             const current = strokePaths[completedStrokes];
@@ -277,7 +275,7 @@ def inject_drawing_canvas():
             ctx.save();
             ctx.scale(scaleX, scaleY);
             ctx.lineWidth = 4;
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)'; // transparent black
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
 
             ctx.setLineDash([dashLength, dashLength]);
             ctx.lineDashOffset = dashLength * (1 - drawProgress);
@@ -304,24 +302,56 @@ def inject_drawing_canvas():
             ctx.restore();
         }
 
+        function drawGrid() {
+            ctx.save();
+            ctx.scale(scaleX, scaleY);
+
+            // Jisho's grid: full 109x109 box
+            const W = 109, H = 109;
+
+            // Outer border
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';  // subtle light gray
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+            ctx.strokeRect(0, 0, W, H);
+
+            // Dashed midlines
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.setLineDash([3, 4]);  // short dash pattern
+
+            // Vertical midline
+            ctx.beginPath();
+            ctx.moveTo(W / 2, 0);
+            ctx.lineTo(W / 2, H);
+            ctx.stroke();
+
+            // Horizontal midline
+            ctx.beginPath();
+            ctx.moveTo(0, H / 2);
+            ctx.lineTo(W, H / 2);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
         function drawScene(timestamp) {
             if (lastTime === null) lastTime = timestamp;
             const dt = timestamp - lastTime;
             lastTime = timestamp;
 
-            // Slow stroke animation
             drawProgress += dt / drawDuration;
             if (drawProgress > 1) drawProgress = 1;
 
-            // Fast looping timer
             repeatProgress += dt / repeatDuration;
             if (repeatProgress >= 1) {
                 repeatProgress = 0;
-                drawProgress = 0;  // restart stroke drawing
+                drawProgress = 0;
             }
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            drawGrid();
             drawBase();
             drawAnimatedStroke();
             drawUserStrokes();
@@ -331,7 +361,7 @@ def inject_drawing_canvas():
 
         animationFrameId = requestAnimationFrame(drawScene);
 
-        // ---- Input handling (user drawing) ----
+        // Input handling
         let drawing = false;
 
         function getOffsetPos(evt) {
@@ -367,8 +397,6 @@ def inject_drawing_canvas():
             evt.preventDefault();
             drawing = false;
             currentStroke = null;
-
-            // TODO: evaluate correctness here later
         }
 
         canvas.addEventListener('mousedown', startDraw);
