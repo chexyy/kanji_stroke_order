@@ -1,0 +1,10 @@
+{
+    "enable_on_front": true,
+    "enable_on_back": false,
+    "stroke_hit_ratio": 0.6,
+    "stroke_corridor_width": 10,
+    "auto_advance_kanji": false,
+    "check_direction": true,
+    "strict_stroke_order": true,
+    "due_mode": 3
+}
