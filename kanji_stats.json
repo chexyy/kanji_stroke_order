@@ -1,0 +1,2009 @@
+{
+  "気": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 5,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308380987649,
+    "lastAttempt": 1769537690698
+  },
+  "届": {
+    "totalAttempts": 8,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 14155152349725,
+    "lastAttempt": 1769537835231
+  },
+  "走": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769306342646,
+    "lastAttempt": 1769306342646
+  },
+  "交": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 8,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7077903438606,
+    "lastAttempt": 1769982091417
+  },
+  "通": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 6,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5307921379538,
+    "lastAttempt": 1769307867152
+  },
+  "費": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 7,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5307921429820,
+    "lastAttempt": 1769307875963
+  },
+  "起": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 13,
+    "totalDirectionErrors": 8,
+    "totalRedraws": 0,
+    "totalTime": 7077230383590,
+    "lastAttempt": 1769308660333
+  },
+  "下": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 0,
+    "totalErrors": 9,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 10616802041246,
+    "lastAttempt": 1769920376907
+  },
+  "着": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769306593198,
+    "lastAttempt": 1769306593198
+  },
+  "代": {
+    "totalAttempts": 10,
+    "consecutiveCorrect": 3,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 17694336887236,
+    "lastAttempt": 1769466892616
+  },
+  "言": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7077432476647,
+    "lastAttempt": 1769409212896
+  },
+  "語": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538614097124,
+    "lastAttempt": 1769307459206
+  },
+  "頭": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 8,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7077232486065,
+    "lastAttempt": 1769310270826
+  },
+  "開": {
+    "totalAttempts": 8,
+    "consecutiveCorrect": 3,
+    "totalErrors": 7,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 14157164191724,
+    "lastAttempt": 1769983600203
+  },
+  "始": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 11,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7077232928907,
+    "lastAttempt": 1769310436544
+  },
+  "高": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769306761222,
+    "lastAttempt": 1769306761222
+  },
+  "校": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769306771169,
+    "lastAttempt": 1769306771169
+  },
+  "生": {
+    "totalAttempts": 16,
+    "consecutiveCorrect": 1,
+    "totalErrors": 27,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 1,
+    "totalTime": 28310852857979,
+    "lastAttempt": 1769723012023
+  },
+  "運": {
+    "totalAttempts": 8,
+    "consecutiveCorrect": 0,
+    "totalErrors": 14,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 14154862177142,
+    "lastAttempt": 1769409387305
+  },
+  "転": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 18,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 8846641820685,
+    "lastAttempt": 1769408799131
+  },
+  "誰": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 17,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 8846543778090,
+    "lastAttempt": 1769310777155
+  },
+  "旅": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5307922809121,
+    "lastAttempt": 1769308337777
+  },
+  "館": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 13,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5307922849356,
+    "lastAttempt": 1769308353424
+  },
+  "価": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5307922855180,
+    "lastAttempt": 1769308386345
+  },
+  "格": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 7,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5307922883588,
+    "lastAttempt": 1769308396272
+  },
+  "予": {
+    "totalAttempts": 11,
+    "consecutiveCorrect": 0,
+    "totalErrors": 6,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 19462563795014,
+    "lastAttempt": 1769463163934
+  },
+  "定": {
+    "totalAttempts": 13,
+    "consecutiveCorrect": 0,
+    "totalErrors": 15,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 2,
+    "totalTime": 23003044882575,
+    "lastAttempt": 1769981411349
+  },
+  "頼": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 0,
+    "totalErrors": 10,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 10615855690660,
+    "lastAttempt": 1769311348582
+  },
+  "産": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 1,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5307923203751,
+    "lastAttempt": 1769308480257
+  },
+  "一": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 0,
+    "totalErrors": 5,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 2,
+    "totalTime": 10618479183479,
+    "lastAttempt": 1769981405739
+  },
+  "人": {
+    "totalAttempts": 16,
+    "consecutiveCorrect": 0,
+    "totalErrors": 13,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 28310408481572,
+    "lastAttempt": 1769464381457
+  },
+  "牛": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538614674201,
+    "lastAttempt": 1769307665989
+  },
+  "肉": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 5,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538614687186,
+    "lastAttempt": 1769307671655
+  },
+  "動": {
+    "totalAttempts": 11,
+    "consecutiveCorrect": 0,
+    "totalErrors": 15,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 19462871690513,
+    "lastAttempt": 1769409289345
+  },
+  "物": {
+    "totalAttempts": 12,
+    "consecutiveCorrect": 0,
+    "totalErrors": 46,
+    "totalDirectionErrors": 2,
+    "totalRedraws": 1,
+    "totalTime": 21233616665871,
+    "lastAttempt": 1769981365163
+  },
+  "押": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5307923855403,
+    "lastAttempt": 1769308740664
+  },
+  "問": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 0,
+    "totalErrors": 8,
+    "totalDirectionErrors": 2,
+    "totalRedraws": 0,
+    "totalTime": 10616106150326,
+    "lastAttempt": 1769405325548
+  },
+  "題": {
+    "totalAttempts": 9,
+    "consecutiveCorrect": 0,
+    "totalErrors": 43,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 15924328576959,
+    "lastAttempt": 1769409101482
+  },
+  "売": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 3,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5307925572286,
+    "lastAttempt": 1769310303978
+  },
+  "切": {
+    "totalAttempts": 16,
+    "consecutiveCorrect": 0,
+    "totalErrors": 33,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 28311764785619,
+    "lastAttempt": 1769980457070
+  },
+  "報": {
+    "totalAttempts": 7,
+    "consecutiveCorrect": 0,
+    "totalErrors": 8,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 12385170233345,
+    "lastAttempt": 1769311518364
+  },
+  "告": {
+    "totalAttempts": 7,
+    "consecutiveCorrect": 0,
+    "totalErrors": 20,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 12385170279566,
+    "lastAttempt": 1769311524595
+  },
+  "変": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 8847089020145,
+    "lastAttempt": 1769625368622
+  },
+  "雪": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538615369227,
+    "lastAttempt": 1769308025612
+  },
+  "甘": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538615495815,
+    "lastAttempt": 1769308116313
+  },
+  "課": {
+    "totalAttempts": 12,
+    "consecutiveCorrect": 0,
+    "totalErrors": 30,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 21232264360706,
+    "lastAttempt": 1769409084537
+  },
+  "遠": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538615855170,
+    "lastAttempt": 1769308320412
+  },
+  "真": {
+    "totalAttempts": 13,
+    "consecutiveCorrect": 0,
+    "totalErrors": 13,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 23003826326948,
+    "lastAttempt": 1769981861313
+  },
+  "面": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 10,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 8846549299557,
+    "lastAttempt": 1769311428754
+  },
+  "目": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 15,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 8846549326293,
+    "lastAttempt": 1769311433266
+  },
+  "私": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 7,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7078136915524,
+    "lastAttempt": 1769982469341
+  },
+  "向": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308861904615,
+    "lastAttempt": 1769920681654
+  },
+  "方": {
+    "totalAttempts": 9,
+    "consecutiveCorrect": 1,
+    "totalErrors": 5,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 15924342639984,
+    "lastAttempt": 1769633290181
+  },
+  "法": {
+    "totalAttempts": 7,
+    "consecutiveCorrect": 0,
+    "totalErrors": 13,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 12385172385841,
+    "lastAttempt": 1769311562143
+  },
+  "本": {
+    "totalAttempts": 8,
+    "consecutiveCorrect": 0,
+    "totalErrors": 16,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 14154842837758,
+    "lastAttempt": 1769408587314
+  },
+  "屋": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 27,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 3,
+    "totalTime": 8847161004520,
+    "lastAttempt": 1769920541970
+  },
+  "返": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5307929352484,
+    "lastAttempt": 1769310858703
+  },
+  "車": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 6,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308030934688,
+    "lastAttempt": 1769409310974
+  },
+  "間": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 10616681481532,
+    "lastAttempt": 1769981701213
+  },
+  "違": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 9,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5307933187783,
+    "lastAttempt": 1769311455975
+  },
+  "遅": {
+    "totalAttempts": 16,
+    "consecutiveCorrect": 0,
+    "totalErrors": 35,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 28311975726294,
+    "lastAttempt": 1769633068988
+  },
+  "事": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 1,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538621826139,
+    "lastAttempt": 1769311135168
+  },
+  "実": {
+    "totalAttempts": 10,
+    "consecutiveCorrect": 0,
+    "totalErrors": 25,
+    "totalDirectionErrors": 3,
+    "totalRedraws": 1,
+    "totalTime": 17697074738297,
+    "lastAttempt": 1769979630866
+  },
+  "降": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 2,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538769486782,
+    "lastAttempt": 1769385057697
+  },
+  "色": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 3,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308168843857,
+    "lastAttempt": 1769392547234
+  },
+  "大": {
+    "totalAttempts": 12,
+    "consecutiveCorrect": 3,
+    "totalErrors": 7,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 21233637171863,
+    "lastAttempt": 1769625351240
+  },
+  "四": {
+    "totalAttempts": 7,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 12386920024432,
+    "lastAttempt": 1769981180088
+  },
+  "角": {
+    "totalAttempts": 10,
+    "consecutiveCorrect": 1,
+    "totalErrors": 13,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 17696258299000,
+    "lastAttempt": 1769981540184
+  },
+  "自": {
+    "totalAttempts": 18,
+    "consecutiveCorrect": 1,
+    "totalErrors": 19,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 31849243791779,
+    "lastAttempt": 1769409326443
+  },
+  "習": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 0,
+    "totalErrors": 20,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 10616383321372,
+    "lastAttempt": 1769408888698
+  },
+  "毎": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308161338515,
+    "lastAttempt": 1769392046461
+  },
+  "年": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 6,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308161357864,
+    "lastAttempt": 1769392052488
+  },
+  "徒": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 16,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 7077573713198,
+    "lastAttempt": 1769404980354
+  },
+  "海": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 5,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538776840920,
+    "lastAttempt": 1769392083140
+  },
+  "質": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 7,
+    "totalDirectionErrors": 2,
+    "totalRedraws": 0,
+    "totalTime": 7077905495431,
+    "lastAttempt": 1769723147347
+  },
+  "楽": {
+    "totalAttempts": 7,
+    "consecutiveCorrect": 0,
+    "totalErrors": 25,
+    "totalDirectionErrors": 3,
+    "totalRedraws": 0,
+    "totalTime": 12386035271561,
+    "lastAttempt": 1769538221130
+  },
+  "日": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 1,
+    "totalErrors": 10,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 10616628861554,
+    "lastAttempt": 1769537138247
+  },
+  "記": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 6,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 5308162088374,
+    "lastAttempt": 1769392237776
+  },
+  "神": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 7,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308162229594,
+    "lastAttempt": 1769392273570
+  },
+  "浴": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769385041114,
+    "lastAttempt": 1769385041115
+  },
+  "果": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 10,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 8847003626819,
+    "lastAttempt": 1769408276376
+  },
+  "今": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 2,
+    "totalErrors": 8,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 8847708408479,
+    "lastAttempt": 1769980044649
+  },
+  "晩": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 11,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308190087548,
+    "lastAttempt": 1769405346966
+  },
+  "由": {
+    "totalAttempts": 7,
+    "consecutiveCorrect": 0,
+    "totalErrors": 12,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 12385821894296,
+    "lastAttempt": 1769409143681
+  },
+  "妹": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 16,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 8847075968542,
+    "lastAttempt": 1769463932714
+  },
+  "発": {
+    "totalAttempts": 12,
+    "consecutiveCorrect": 0,
+    "totalErrors": 20,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 21236898421451,
+    "lastAttempt": 1769983606989
+  },
+  "口": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 0,
+    "totalErrors": 9,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 10616928983614,
+    "lastAttempt": 1769920676619
+  },
+  "書": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308794692768,
+    "lastAttempt": 1769980597497
+  },
+  "取": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 8,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538814114852,
+    "lastAttempt": 1769408539858
+  },
+  "若": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538814234324,
+    "lastAttempt": 1769408574622
+  },
+  "技": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 6,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7077628661878,
+    "lastAttempt": 1769408647620
+  },
+  "術": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 0,
+    "totalErrors": 19,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 10616446721384,
+    "lastAttempt": 1769409030491
+  },
+  "貸": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 7,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538814416612,
+    "lastAttempt": 1769408672241
+  },
+  "出": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 12,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308794748881,
+    "lastAttempt": 1769980315612
+  },
+  "当": {
+    "totalAttempts": 7,
+    "consecutiveCorrect": 1,
+    "totalErrors": 14,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 12386154348423,
+    "lastAttempt": 1769539518016
+  },
+  "然": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 11,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7077757308274,
+    "lastAttempt": 1769536887832
+  },
+  "分": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539387189655,
+    "lastAttempt": 1769981299910
+  },
+  "経": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 1,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7077741836628,
+    "lastAttempt": 1769463874563
+  },
+  "営": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 10,
+    "totalDirectionErrors": 2,
+    "totalRedraws": 0,
+    "totalTime": 3538814852152,
+    "lastAttempt": 1769408919427
+  },
+  "手": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 2,
+    "totalErrors": 7,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7078778502765,
+    "lastAttempt": 1769980361488
+  },
+  "窓": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769409048191,
+    "lastAttempt": 1769409048191
+  },
+  "育": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538818494498,
+    "lastAttempt": 1769409256226
+  },
+  "立": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308540122482,
+    "lastAttempt": 1769538658600
+  },
+  "験": {
+    "totalAttempts": 7,
+    "consecutiveCorrect": 0,
+    "totalErrors": 21,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 2,
+    "totalTime": 12387292521468,
+    "lastAttempt": 1769920141881
+  },
+  "約": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 6,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769463177236,
+    "lastAttempt": 1769463177236
+  },
+  "試": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769463203135,
+    "lastAttempt": 1769463203135
+  },
+  "親": {
+    "totalAttempts": 14,
+    "consecutiveCorrect": 0,
+    "totalErrors": 24,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 24774453165538,
+    "lastAttempt": 1769980452474
+  },
+  "複": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769463552069,
+    "lastAttempt": 1769463552069
+  },
+  "雑": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769463564442,
+    "lastAttempt": 1769463564442
+  },
+  "万": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 7,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 8847324170678,
+    "lastAttempt": 1769465920119
+  },
+  "歳": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 12,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 8847840581512,
+    "lastAttempt": 1769981512630
+  },
+  "強": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 16,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7078168500584,
+    "lastAttempt": 1769625461850
+  },
+  "化": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 5,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769463659674,
+    "lastAttempt": 1769463659674
+  },
+  "彼": {
+    "totalAttempts": 8,
+    "consecutiveCorrect": 1,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 14156032523880,
+    "lastAttempt": 1769633679037
+  },
+  "表": {
+    "totalAttempts": 10,
+    "consecutiveCorrect": 0,
+    "totalErrors": 20,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 1,
+    "totalTime": 17696714908457,
+    "lastAttempt": 1769983197685
+  },
+  "限": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538928989693,
+    "lastAttempt": 1769465242288
+  },
+  "業": {
+    "totalAttempts": 7,
+    "consecutiveCorrect": 0,
+    "totalErrors": 23,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 12386254544535,
+    "lastAttempt": 1769466818958
+  },
+  "者": {
+    "totalAttempts": 7,
+    "consecutiveCorrect": 0,
+    "totalErrors": 25,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 12386255300472,
+    "lastAttempt": 1769466827763
+  },
+  "入": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7078313826216,
+    "lastAttempt": 1769920673884
+  },
+  "学": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 1,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308393174786,
+    "lastAttempt": 1769465341580
+  },
+  "欠": {
+    "totalAttempts": 9,
+    "consecutiveCorrect": 1,
+    "totalErrors": 8,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 15925189960204,
+    "lastAttempt": 1769466963663
+  },
+  "席": {
+    "totalAttempts": 8,
+    "consecutiveCorrect": 0,
+    "totalErrors": 14,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 14155723334954,
+    "lastAttempt": 1769466972727
+  },
+  "住": {
+    "totalAttempts": 13,
+    "consecutiveCorrect": 0,
+    "totalErrors": 9,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 1,
+    "totalTime": 23003040580506,
+    "lastAttempt": 1769466666278
+  },
+  "民": {
+    "totalAttempts": 13,
+    "consecutiveCorrect": 0,
+    "totalErrors": 19,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 2,
+    "totalTime": 23003040664340,
+    "lastAttempt": 1769466680916
+  },
+  "話": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769464107968,
+    "lastAttempt": 1769464107968
+  },
+  "合": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769464113331,
+    "lastAttempt": 1769464113331
+  },
+  "形": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7077858556586,
+    "lastAttempt": 1769465425503
+  },
+  "主": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 3,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7077857152294,
+    "lastAttempt": 1769464377909
+  },
+  "地": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 2,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539446303306,
+    "lastAttempt": 1769981986778
+  },
+  "域": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769464328111,
+    "lastAttempt": 1769464328111
+  },
+  "時": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538929340083,
+    "lastAttempt": 1769464682452
+  },
+  "木": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538929630915,
+    "lastAttempt": 1769464829192
+  },
+  "曜": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 8,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538929656641,
+    "lastAttempt": 1769464841580
+  },
+  "議": {
+    "totalAttempts": 8,
+    "consecutiveCorrect": 0,
+    "totalErrors": 25,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 14155722742256,
+    "lastAttempt": 1769466743377
+  },
+  "員": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 8,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3538931662470,
+    "lastAttempt": 1769466754430
+  },
+  "辛": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769464928406,
+    "lastAttempt": 1769464928406
+  },
+  "会": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 0,
+    "totalErrors": 11,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 10616792327693,
+    "lastAttempt": 1769466765316
+  },
+  "腕": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 1,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308396526881,
+    "lastAttempt": 1769465972694
+  },
+  "風": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539446376275,
+    "lastAttempt": 1769979658909
+  },
+  "直": {
+    "totalAttempts": 9,
+    "consecutiveCorrect": 0,
+    "totalErrors": 10,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 15927710434273,
+    "lastAttempt": 1769983675916
+  },
+  "型": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 5,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 1,
+    "totalTime": 5308611559541,
+    "lastAttempt": 1769538168038
+  },
+  "建": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769536794830,
+    "lastAttempt": 1769536794830
+  },
+  "兄": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 3,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5309435154510,
+    "lastAttempt": 1769977658645
+  },
+  "規": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 2,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308611283838,
+    "lastAttempt": 1769537617796
+  },
+  "則": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 1,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308611307089,
+    "lastAttempt": 1769537626020
+  },
+  "全": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 1,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539074424749,
+    "lastAttempt": 1769537548253
+  },
+  "忘": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 0,
+    "totalErrors": 13,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 1,
+    "totalTime": 5308611409297,
+    "lastAttempt": 1769537589917
+  },
+  "元": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 2,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539074679471,
+    "lastAttempt": 1769537680375
+  },
+  "見": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 2,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539074758494,
+    "lastAttempt": 1769537744793
+  },
+  "薬": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 0,
+    "totalErrors": 13,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 10617243249884,
+    "lastAttempt": 1769552272795
+  },
+  "明": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769537133956,
+    "lastAttempt": 1769537133956
+  },
+  "残": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 2,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5308612655293,
+    "lastAttempt": 1769538114313
+  },
+  "黒": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539074659592,
+    "lastAttempt": 1769537336786
+  },
+  "音": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769537416213,
+    "lastAttempt": 1769537416213
+  },
+  "後": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539519498389,
+    "lastAttempt": 1769982028767
+  },
+  "速": {
+    "totalAttempts": 10,
+    "consecutiveCorrect": 0,
+    "totalErrors": 19,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 17696032922900,
+    "lastAttempt": 1769723375797
+  },
+  "対": {
+    "totalAttempts": 12,
+    "consecutiveCorrect": 0,
+    "totalErrors": 22,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 21234817744095,
+    "lastAttempt": 1769632927712
+  },
+  "戻": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 1,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539075139424,
+    "lastAttempt": 1769537574822
+  },
+  "帰": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 2,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539075448370,
+    "lastAttempt": 1769537731187
+  },
+  "似": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 6,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7078154129554,
+    "lastAttempt": 1769539455292
+  },
+  "達": {
+    "totalAttempts": 14,
+    "consecutiveCorrect": 0,
+    "totalErrors": 50,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 24774555441607,
+    "lastAttempt": 1769723386960
+  },
+  "回": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769538321288,
+    "lastAttempt": 1769538321288
+  },
+  "休": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769538362344,
+    "lastAttempt": 1769538362344
+  },
+  "泊": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769538388547,
+    "lastAttempt": 1769538388547
+  },
+  "急": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 1,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7079421313890,
+    "lastAttempt": 1769982301592
+  },
+  "体": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769538524151,
+    "lastAttempt": 1769538524151
+  },
+  "活": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 2,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539077178298,
+    "lastAttempt": 1769538595181
+  },
+  "配": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 7,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 8848059848717,
+    "lastAttempt": 1769722856852
+  },
+  "担": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769539513302,
+    "lastAttempt": 1769539513302
+  },
+  "反": {
+    "totalAttempts": 13,
+    "consecutiveCorrect": 0,
+    "totalErrors": 26,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 23004367039046,
+    "lastAttempt": 1769632920209
+  },
+  "道": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769625431358,
+    "lastAttempt": 1769625431358
+  },
+  "路": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769625442648,
+    "lastAttempt": 1769625442648
+  },
+  "家": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 15,
+    "totalDirectionErrors": 8,
+    "totalRedraws": 1,
+    "totalTime": 8849296986701,
+    "lastAttempt": 1769983439692
+  },
+  "場": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769625735541,
+    "lastAttempt": 1769625735541
+  },
+  "紙": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539606025215,
+    "lastAttempt": 1769980160954
+  },
+  "中": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769625879287,
+    "lastAttempt": 1769625879287
+  },
+  "心": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769625885133,
+    "lastAttempt": 1769625885133
+  },
+  "答": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 5,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7078615933506,
+    "lastAttempt": 1769723080115
+  },
+  "来": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539356154391,
+    "lastAttempt": 1769722883261
+  },
+  "必": {
+    "totalAttempts": 7,
+    "consecutiveCorrect": 0,
+    "totalErrors": 13,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 1,
+    "totalTime": 12389266646115,
+    "lastAttempt": 1769983642449
+  },
+  "最": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539356287979,
+    "lastAttempt": 1769722911293
+  },
+  "品": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769633556754,
+    "lastAttempt": 1769633556754
+  },
+  "特": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 2,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 10618733736788,
+    "lastAttempt": 1769920750656
+  },
+  "初": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 5,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 1769722921425,
+    "lastAttempt": 1769722921425
+  },
+  "考": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769722998796,
+    "lastAttempt": 1769722998796
+  },
+  "奇": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769723043233,
+    "lastAttempt": 1769723043233
+  },
+  "麗": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769723063394,
+    "lastAttempt": 1769723063394
+  },
+  "広": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769723180486,
+    "lastAttempt": 1769723180486
+  },
+  "渇": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 1,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539446416265,
+    "lastAttempt": 1769723215171
+  },
+  "千": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 1,
+    "totalTime": 1769723257476,
+    "lastAttempt": 1769723257476
+  },
+  "子": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 2,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539446556341,
+    "lastAttempt": 1769723282814
+  },
+  "現": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539643635800,
+    "lastAttempt": 1769920295576
+  },
+  "緒": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 1,
+    "totalTime": 1769920354527,
+    "lastAttempt": 1769920354527
+  },
+  "洋": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539840867997,
+    "lastAttempt": 1769920440955
+  },
+  "服": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769920447630,
+    "lastAttempt": 1769920447630
+  },
+  "可": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539840939716,
+    "lastAttempt": 1769920481787
+  },
+  "能": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 5,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539840963193,
+    "lastAttempt": 1769920495917
+  },
+  "八": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 5,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769920515651,
+    "lastAttempt": 1769920515651
+  },
+  "百": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 8,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 3,
+    "totalTime": 1769920530799,
+    "lastAttempt": 1769920530799
+  },
+  "弟": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 3539898374741,
+    "lastAttempt": 1769977670189
+  },
+  "写": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 1,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539961432612,
+    "lastAttempt": 1769981852324
+  },
+  "不": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539960121035,
+    "lastAttempt": 1769980438757
+  },
+  "思": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769979730903,
+    "lastAttempt": 1769979730903
+  },
+  "覚": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 1,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5309941637073,
+    "lastAttempt": 1769981557539
+  },
+  "要": {
+    "totalAttempts": 5,
+    "consecutiveCorrect": 0,
+    "totalErrors": 28,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 8849910468615,
+    "lastAttempt": 1769983654948
+  },
+  "夏": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769980505739,
+    "lastAttempt": 1769980505739
+  },
+  "負": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769980551702,
+    "lastAttempt": 1769980551702
+  },
+  "図": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539962580928,
+    "lastAttempt": 1769981993357
+  },
+  "減": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769980867677,
+    "lastAttempt": 1769980867677
+  },
+  "期": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 7079929425195,
+    "lastAttempt": 1769983479256
+  },
+  "待": {
+    "totalAttempts": 4,
+    "consecutiveCorrect": 0,
+    "totalErrors": 6,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 1,
+    "totalTime": 7079929465242,
+    "lastAttempt": 1769983496853
+  },
+  "野": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769981307335,
+    "lastAttempt": 1769981307335
+  },
+  "二": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769981500651,
+    "lastAttempt": 1769981500651
+  },
+  "十": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769981502438,
+    "lastAttempt": 1769981502438
+  },
+  "曲": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769981533659,
+    "lastAttempt": 1769981533659
+  },
+  "少": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769981587715,
+    "lastAttempt": 1769981587715
+  },
+  "接": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 0,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539965080482,
+    "lastAttempt": 1769983143588
+  },
+  "以": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 1,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539964097488,
+    "lastAttempt": 1769982056525
+  },
+  "上": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 1,
+    "totalErrors": 6,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539964104894,
+    "lastAttempt": 1769982058782
+  },
+  "差": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 6,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769982099355,
+    "lastAttempt": 1769982099355
+  },
+  "美": {
+    "totalAttempts": 2,
+    "consecutiveCorrect": 1,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 3539965386177,
+    "lastAttempt": 1769983249526
+  },
+  "汚": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1769982176344,
+    "lastAttempt": 1769982176344
+  },
+  "族": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 1769983175284,
+    "lastAttempt": 1769983175284
+  }
+}

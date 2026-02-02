@@ -6,11 +6,56 @@ import re
 import urllib.parse
 import urllib.request
 import json
+import os
 
 KANJI_REGEX = re.compile(r"[\u4E00-\u9FFF]")
 debug = True
 
 CONFIG = mw.addonManager.getConfig(__name__)
+
+# Cache file path in the addon directory
+CACHE_FILE = os.path.join(os.path.dirname(__file__), "kanji_cache.json")
+STATS_FILE = os.path.join(os.path.dirname(__file__), "kanji_stats.json")
+
+def load_cache():
+    """Load kanji stroke data from cache file."""
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            debugPrint(f"Error loading cache: {e}")
+    return {}
+
+def save_cache(cache):
+    """Save kanji stroke data to cache file."""
+    try:
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        debugPrint(f"Error saving cache: {e}")
+
+def load_stats():
+    """Load kanji stats from stats file."""
+    if os.path.exists(STATS_FILE):
+        try:
+            with open(STATS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            debugPrint(f"Error loading stats: {e}")
+    return {}
+
+def save_stats(stats):
+    """Save kanji stats to stats file."""
+    try:
+        with open(STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(stats, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        debugPrint(f"Error saving stats: {e}")
+
+# Load cache and stats at startup
+KANJI_CACHE = load_cache()
+KANJI_STATS = load_stats()
 
 def debugPrint(message):
     if debug:
@@ -18,8 +63,21 @@ def debugPrint(message):
 
 
 def kanjiRenderer(char):
+    global KANJI_CACHE
+    
+    # Check cache first
+    if char in KANJI_CACHE:
+        debugPrint(f"Loading {char} from cache")
+        return KANJI_CACHE[char]
+    
+    # Fetch from internet if not in cache
+    debugPrint(f"Fetching {char} from Jisho.org")
     svgHTML = fetch_jisho_svg_html_for_kanji(char)
     strokeData = extract_stroke_paths_from_svg(svgHTML, char)
+
+    # Save to cache
+    KANJI_CACHE[char] = strokeData
+    save_cache(KANJI_CACHE)
 
     # Optional debug – you can comment this out if you don't need it
     with open("output_file.txt", "w", encoding="utf-8") as f:
@@ -283,6 +341,30 @@ gui_hooks.reviewer_did_show_question.append(_on_show_question)
 gui_hooks.reviewer_did_show_answer.append(_on_show_answer)
 
 
+def _handle_webview_message(handled, message, context):
+    """Handle messages from the webview (pycmd calls from JavaScript)"""
+    global KANJI_STATS
+    
+    if message.startswith("saveKanjiStats:"):
+        # Format: saveKanjiStats:KANJI:JSON_STATS
+        parts = message[15:].split(":", 1)  # Remove "saveKanjiStats:" prefix
+        if len(parts) == 2:
+            kanji = parts[0]
+            try:
+                stats = json.loads(parts[1])
+                KANJI_STATS[kanji] = stats
+                save_stats(KANJI_STATS)
+                debugPrint(f"Saved stats for {kanji}: {stats}")
+            except Exception as e:
+                debugPrint(f"Error saving stats: {e}")
+        return (True, "")
+    
+    return handled
+
+
+gui_hooks.webview_did_receive_js_message.append(_handle_webview_message)
+
+
 def inject_drawing_canvas():
     # Read config from Anki
     cfg = mw.addonManager.getConfig(__name__)
@@ -293,7 +375,8 @@ def inject_drawing_canvas():
     strict_order = "true" if cfg.get("strict_stroke_order", True) else "false"
     due_mode = cfg.get("due_mode", 1)
 
-    # Inject config into the webview
+    # Inject config and stats into the webview
+    stats_json = json.dumps(KANJI_STATS)
     js_cfg = f"""
     (function() {{
         window.KSO_CONFIG = {{
@@ -304,6 +387,7 @@ def inject_drawing_canvas():
             strictStrokeOrder: {strict_order},
             dueMode: {due_mode}
         }};
+        window.KSO_STATS = {stats_json};
     }})();
     """
     mw.reviewer.web.eval(js_cfg)
@@ -313,9 +397,11 @@ def inject_drawing_canvas():
     (function() {
         console.log('[Init] Starting kanji drawing UI...');
         
-        if (document.getElementById('kanji-draw-container')) {
-            console.log('[Init] Container already exists, exiting');
-            return;
+        // Remove any existing container to ensure fresh start
+        const existingContainer = document.getElementById('kanji-draw-container');
+        if (existingContainer) {
+            console.log('[Init] Removing existing container');
+            existingContainer.remove();
         }
 
         console.log('[Init] Reading config...');
@@ -492,18 +578,22 @@ def inject_drawing_canvas():
         let currentStrokeSvg = null;
         let hintActive = false;
 
+        // Store user strokes per kanji (only for current card session)
+        let userStrokesPerKanji = {};
+
         // Performance tracking
         let sessionStartTime = null;
         let strokeErrors = 0;
         let directionErrors = 0;
         let totalRedraws = 0;
 
-        // Load kanji stats from localStorage
+        // Stats storage (loaded from Python, synced back on save)
+        let statsCache = window.KSO_STATS || {};
+
+        // Load kanji stats from cache
         function loadKanjiStats(kanji) {
-            const key = 'kanjiStats_' + kanji;
-            const stored = localStorage.getItem(key);
-            if (stored) {
-                return JSON.parse(stored);
+            if (statsCache[kanji]) {
+                return statsCache[kanji];
             }
             return {
                 totalAttempts: 0,
@@ -516,10 +606,12 @@ def inject_drawing_canvas():
             };
         }
 
-        // Save kanji stats to localStorage
+        // Save kanji stats to Python backend
         function saveKanjiStats(kanji, stats) {
-            const key = 'kanjiStats_' + kanji;
-            localStorage.setItem(key, JSON.stringify(stats));
+            // Update local cache
+            statsCache[kanji] = stats;
+            // Send to Python for persistent storage
+            pycmd('saveKanjiStats:' + kanji + ':' + JSON.stringify(stats));
         }
 
         // Update stats display
@@ -546,6 +638,17 @@ def inject_drawing_canvas():
             statsDisplay.textContent = statsText;
         }
 
+        function saveCurrentKanjiState() {
+            // Save current kanji's state to preserve strokes
+            if (strokePaths.length > 0 && currentKanjiIndex >= 0) {
+                userStrokesPerKanji[currentKanjiIndex] = {
+                    strokes: userStrokes.slice(),
+                    completedStrokes: STRICT_STROKE_ORDER ? completedStrokes : new Set(completedStrokes),
+                    currentStrokeIndex: currentStrokeIndex
+                };
+            }
+        }
+
         function loadCurrentKanji() {
             const currentKanji = rawKanjiData[currentKanjiIndex] || { strokes: [] };
 
@@ -560,20 +663,39 @@ def inject_drawing_canvas():
                 end_y: s.end_y,
             }));
 
-            completedStrokes = STRICT_STROKE_ORDER ? 0 : new Set();
-            currentStrokeIndex = 0;
-            previousStrokeIndex = 0;
-            userStrokes = [];
+            // Restore previous strokes if they exist
+            if (userStrokesPerKanji[currentKanjiIndex]) {
+                const saved = userStrokesPerKanji[currentKanjiIndex];
+                userStrokes = saved.strokes.slice(); // Deep copy
+                completedStrokes = STRICT_STROKE_ORDER ? saved.completedStrokes : new Set(saved.completedStrokes);
+                currentStrokeIndex = saved.currentStrokeIndex;
+            } else {
+                // Fresh kanji - initialize empty state
+                completedStrokes = STRICT_STROKE_ORDER ? 0 : new Set();
+                currentStrokeIndex = 0;
+                userStrokes = [];
+                
+                // Save this initial empty state
+                userStrokesPerKanji[currentKanjiIndex] = {
+                    strokes: [],
+                    completedStrokes: STRICT_STROKE_ORDER ? 0 : new Set(),
+                    currentStrokeIndex: 0
+                };
+            }
+            
+            previousStrokeIndex = currentStrokeIndex;
             currentStroke = null;
             currentStrokeSvg = null;
             drawProgress = 0;
             repeatProgress = 0;
 
-            // Reset session stats
-            sessionStartTime = Date.now();
-            strokeErrors = 0;
-            directionErrors = 0;
-            totalRedraws = 0;
+            // Reset session stats only for new kanji
+            if (!userStrokesPerKanji[currentKanjiIndex]) {
+                sessionStartTime = Date.now();
+                strokeErrors = 0;
+                directionErrors = 0;
+                totalRedraws = 0;
+            }
 
             prevBtn.disabled = currentKanjiIndex === 0;
             nextBtn.disabled = currentKanjiIndex === rawKanjiData.length - 1;
@@ -1087,6 +1209,9 @@ def inject_drawing_canvas():
                     currentStrokeIndex++;
                 }
 
+                // Save state after successful stroke
+                saveCurrentKanjiState();
+
                 // Check if all strokes completed
                 const allComplete = STRICT_STROKE_ORDER 
                     ? completedStrokes >= strokePaths.length
@@ -1152,6 +1277,7 @@ def inject_drawing_canvas():
             if (userStrokes.length > 0) {
                 totalRedraws++;
             }
+            // Clear only current kanji's strokes
             userStrokes = [];
             currentStroke = null;
             currentStrokeSvg = null;
@@ -1160,6 +1286,13 @@ def inject_drawing_canvas():
             previousStrokeIndex = 0;
             drawProgress = 0;
             repeatProgress = 0;
+            
+            // Update the stored state for current kanji
+            userStrokesPerKanji[currentKanjiIndex] = {
+                strokes: [],
+                completedStrokes: STRICT_STROKE_ORDER ? 0 : new Set(),
+                currentStrokeIndex: 0
+            };
         });
 
         hintBtn.addEventListener('click', function() {
@@ -1172,14 +1305,24 @@ def inject_drawing_canvas():
         resetStatsBtn.addEventListener('click', function() {
             const currentKanji = rawKanjiData[currentKanjiIndex];
             if (currentKanji && confirm('Reset stats for ' + currentKanji.char + '?')) {
-                const key = 'kanjiStats_' + currentKanji.char;
-                localStorage.removeItem(key);
+                // Reset stats in cache and save to Python
+                delete statsCache[currentKanji.char];
+                pycmd('saveKanjiStats:' + currentKanji.char + ':' + JSON.stringify({
+                    totalAttempts: 0,
+                    consecutiveCorrect: 0,
+                    totalErrors: 0,
+                    totalDirectionErrors: 0,
+                    totalRedraws: 0,
+                    totalTime: 0,
+                    lastAttempt: null
+                }));
                 updateStatsDisplay();
             }
         });
 
         prevBtn.addEventListener('click', function() {
             if (currentKanjiIndex > 0) {
+                saveCurrentKanjiState();
                 currentKanjiIndex--;
                 loadCurrentKanji();
             }
@@ -1187,12 +1330,15 @@ def inject_drawing_canvas():
 
         nextBtn.addEventListener('click', function() {
             if (currentKanjiIndex < rawKanjiData.length - 1) {
+                saveCurrentKanjiState();
                 currentKanjiIndex++;
                 loadCurrentKanji();
             }
         });
 
         restartBtn.addEventListener('click', function() {
+            // Clear all kanji strokes and start from first kanji
+            userStrokesPerKanji = {};
             currentKanjiIndex = 0;
             loadCurrentKanji();
         });

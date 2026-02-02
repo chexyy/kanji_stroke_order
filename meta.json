@@ -1,1 +1,1 @@
-{"config": {"auto_advance_kanji": true, "check_direction": true, "due_mode": 2, "enable_on_back": false, "enable_on_front": true, "strict_stroke_order": false, "stroke_corridor_width": 10, "stroke_hit_ratio": 0.6}}
+{"config": {"auto_advance_kanji": true, "check_direction": true, "due_mode": 2, "enable_on_back": true, "enable_on_front": true, "strict_stroke_order": true, "stroke_corridor_width": 10, "stroke_hit_ratio": 0.6}}
