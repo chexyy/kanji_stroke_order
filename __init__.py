@@ -1,6 +1,6 @@
 from aqt import mw
 from aqt import gui_hooks
-from aqt.qt import QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QAction, QAbstractItemView, QComboBox, QCalendarWidget
+from aqt.qt import QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QAction, QAbstractItemView, QComboBox, QCalendarWidget, QTextEdit, QFileDialog, QGroupBox
 import xml.etree.ElementTree as ET
 import re
 import urllib.parse
@@ -20,6 +20,7 @@ CONFIG = mw.addonManager.getConfig(__name__)
 CACHE_FILE = os.path.join(os.path.dirname(__file__), "kanji_cache.json")
 STATS_FILE = os.path.join(os.path.dirname(__file__), "kanji_stats.json")
 CARD_STATS_FILE = os.path.join(os.path.dirname(__file__), "card_stats.json")
+AI_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "ai_config.json")
 
 def load_cache():
     """Load kanji stroke data from cache file."""
@@ -74,6 +75,30 @@ def save_card_stats(stats):
             json.dump(stats, f, ensure_ascii=False, indent=2)
     except Exception as e:
         debugPrint(f"Error saving card stats: {e}")
+
+def load_ai_config():
+    """Load AI configuration from file."""
+    if os.path.exists(AI_CONFIG_FILE):
+        try:
+            with open(AI_CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            debugPrint(f"Error loading AI config: {e}")
+    return {
+        'api_url': '',
+        'api_key': '',
+        'model': '',
+        'instructions': '',
+        'pdf_path': ''
+    }
+
+def save_ai_config(config):
+    """Save AI configuration to file."""
+    try:
+        with open(AI_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        debugPrint(f"Error saving AI config: {e}")
 
 # Load cache and stats at startup
 KANJI_CACHE = load_cache()
@@ -1444,6 +1469,153 @@ def inject_drawing_canvas():
 # Phase 2A: Practice Menu UI
 # ============================================================================
 
+class AIConfigDialog(QDialog):
+    """Dialog for configuring AI sentence generation."""
+    
+    def __init__(self, config, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("AI Configuration")
+        self.setMinimumSize(600, 500)
+        
+        self.config = config.copy()
+        self.setup_ui()
+    
+    def setup_ui(self):
+        """Create the AI config dialog UI."""
+        layout = QVBoxLayout()
+        
+        # Title
+        title = QLabel("<h2>AI Sentence Generation Configuration</h2>")
+        layout.addWidget(title)
+        
+        # API URL
+        api_group = QGroupBox("API Settings")
+        api_layout = QVBoxLayout()
+        
+        url_layout = QHBoxLayout()
+        url_label = QLabel("API URL:")
+        self.url_input = QLineEdit()
+        self.url_input.setPlaceholderText("https://api.openai.com/v1/chat/completions")
+        self.url_input.setText(self.config.get('api_url', ''))
+        url_layout.addWidget(url_label)
+        url_layout.addWidget(self.url_input)
+        api_layout.addLayout(url_layout)
+        
+        # API Key
+        key_layout = QHBoxLayout()
+        key_label = QLabel("API Key:")
+        self.key_input = QLineEdit()
+        self.key_input.setPlaceholderText("sk-...")
+        self.key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.key_input.setText(self.config.get('api_key', ''))
+        key_layout.addWidget(key_label)
+        key_layout.addWidget(self.key_input)
+        api_layout.addLayout(key_layout)
+        
+        # Model
+        model_layout = QHBoxLayout()
+        model_label = QLabel("Model:")
+        self.model_input = QLineEdit()
+        self.model_input.setPlaceholderText("gpt-4, claude-3-opus, etc.")
+        self.model_input.setText(self.config.get('model', ''))
+        model_layout.addWidget(model_label)
+        model_layout.addWidget(self.model_input)
+        api_layout.addLayout(model_layout)
+        
+        api_group.setLayout(api_layout)
+        layout.addWidget(api_group)
+        
+        # Instructions
+        instr_group = QGroupBox("Instructions && Context")
+        instr_layout = QVBoxLayout()
+        
+        instr_label = QLabel("Extra instructions for sentence generation:")
+        instr_layout.addWidget(instr_label)
+        
+        self.instructions_input = QTextEdit()
+        self.instructions_input.setPlaceholderText(
+            "Enter any specific instructions for generating sentences...\n"
+            "For example:\n"
+            "- Use JLPT N3 vocabulary\n"
+            "- Focus on daily conversation\n"
+            "- Include formal and informal examples"
+        )
+        self.instructions_input.setText(self.config.get('instructions', ''))
+        self.instructions_input.setMinimumHeight(150)
+        instr_layout.addWidget(self.instructions_input)
+        
+        # PDF attachment
+        pdf_layout = QHBoxLayout()
+        pdf_label = QLabel("Attach PDF (optional):")
+        self.pdf_path_label = QLabel(self.config.get('pdf_path', 'No file selected'))
+        if self.config.get('pdf_path', ''):
+            self.pdf_path_label.setStyleSheet("color: black; background-color: #f0f0f0; padding: 5px; border-radius: 3px;")
+        else:
+            self.pdf_path_label.setStyleSheet("color: gray; font-style: italic; background-color: #f0f0f0; padding: 5px; border-radius: 3px;")
+        
+        browse_btn = QPushButton("Browse...")
+        browse_btn.clicked.connect(self.browse_pdf)
+        
+        clear_pdf_btn = QPushButton("Clear")
+        clear_pdf_btn.clicked.connect(self.clear_pdf)
+        
+        pdf_layout.addWidget(pdf_label)
+        pdf_layout.addWidget(self.pdf_path_label, 1)
+        pdf_layout.addWidget(browse_btn)
+        pdf_layout.addWidget(clear_pdf_btn)
+        instr_layout.addLayout(pdf_layout)
+        
+        instr_group.setLayout(instr_layout)
+        layout.addWidget(instr_group)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self.accept)
+        save_btn.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; padding: 8px; }")
+        button_layout.addWidget(save_btn)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_btn)
+        
+        layout.addLayout(button_layout)
+        
+        self.setLayout(layout)
+    
+    def browse_pdf(self):
+        """Open file dialog to select PDF."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select PDF File",
+            "",
+            "PDF Files (*.pdf);;All Files (*)"
+        )
+        
+        if file_path:
+            self.config['pdf_path'] = file_path
+            self.pdf_path_label.setText(file_path)
+            self.pdf_path_label.setStyleSheet("color: black; background-color: #f0f0f0; padding: 5px; border-radius: 3px;")
+    
+    def clear_pdf(self):
+        """Clear selected PDF."""
+        self.config['pdf_path'] = ''
+        self.pdf_path_label.setText('No file selected')
+        self.pdf_path_label.setStyleSheet("color: gray; font-style: italic; background-color: #f0f0f0; padding: 5px; border-radius: 3px;")
+    
+    def get_config(self):
+        """Get the current configuration."""
+        self.config['api_url'] = self.url_input.text()
+        self.config['api_key'] = self.key_input.text()
+        self.config['model'] = self.model_input.text()
+        self.config['instructions'] = self.instructions_input.toPlainText()
+        # Save to file
+        save_ai_config(self.config)
+        return self.config
+
+
 class KanjiPracticeDialog(QDialog):
     """Standalone practice interface for kanji stroke order practice."""
     
@@ -1459,7 +1631,19 @@ class KanjiPracticeDialog(QDialog):
         self.date_range_start = None
         self.date_range_end = None
         
+        # Sentence source configuration
+        self.ai_config = load_ai_config()
+        self.sentence_source = self.ai_config.get('sentence_source', 'fields')  # "fields" or "ai"
+        
         self.setup_ui()
+        
+        # Restore saved sentence source selection
+        if self.sentence_source == "ai":
+            self.source_combo.setCurrentIndex(1)
+            self.config_ai_btn.setVisible(True)
+        else:
+            self.source_combo.setCurrentIndex(0)
+            self.config_ai_btn.setVisible(False)
     
     def setup_ui(self):
         """Create the dialog UI."""
@@ -1492,6 +1676,26 @@ class KanjiPracticeDialog(QDialog):
         time_layout.addWidget(self.time_range_combo)
         time_layout.addStretch()
         layout.addLayout(time_layout)
+        
+        # Sentence source selection
+        source_layout = QHBoxLayout()
+        source_label = QLabel("Sentence source:")
+        self.source_combo = QComboBox()
+        self.source_combo.addItems([
+            "Card fields (Expression, Reading, etc.)",
+            "AI-generated sentences"
+        ])
+        self.source_combo.currentIndexChanged.connect(self.on_source_changed)
+        
+        self.config_ai_btn = QPushButton("Configure AI")
+        self.config_ai_btn.clicked.connect(self.open_ai_config)
+        self.config_ai_btn.setVisible(False)
+        
+        source_layout.addWidget(source_label)
+        source_layout.addWidget(self.source_combo)
+        source_layout.addWidget(self.config_ai_btn)
+        source_layout.addStretch()
+        layout.addLayout(source_layout)
         
         # Date range display (shown when time range selected)
         self.date_range_label = QLabel("")
@@ -1760,6 +1964,25 @@ class KanjiPracticeDialog(QDialog):
         cancel_btn.clicked.connect(on_cancel)
         
         dialog.exec()
+    
+    def on_source_changed(self, index):
+        """Handle sentence source selection change."""
+        if index == 0:
+            self.sentence_source = "fields"
+            self.config_ai_btn.setVisible(False)
+        else:
+            self.sentence_source = "ai"
+            self.config_ai_btn.setVisible(True)
+        
+        # Save selection to config
+        self.ai_config['sentence_source'] = self.sentence_source
+        save_ai_config(self.ai_config)
+    
+    def open_ai_config(self):
+        """Open AI configuration dialog."""
+        dialog = AIConfigDialog(self.ai_config, self)
+        if dialog.exec():
+            self.ai_config = dialog.get_config()
     
     def filter_cards(self, text):
         """Filter card list based on search text."""
@@ -2036,7 +2259,10 @@ def open_practice_dialog():
 # Register menu item
 def setup_menu():
     """Add Practice menu to Anki's Tools menu."""
-    action = QAction("Kanji Sentence Practice...", mw)
+    from aqt.qt import QKeySequence
+    
+    action = QAction("&Kanji Sentence Practice...", mw)
+    action.setShortcut(QKeySequence("K"))
     action.triggered.connect(open_practice_dialog)
     mw.form.menuTools.addAction(action)
 
