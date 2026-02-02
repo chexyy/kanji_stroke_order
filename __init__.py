@@ -9,6 +9,8 @@ import json
 import os
 
 KANJI_REGEX = re.compile(r"[\u4E00-\u9FFF]")
+HIRAGANA_REGEX = re.compile(r"[\u3040-\u309F]")
+KATAKANA_REGEX = re.compile(r"[\u30A0-\u30FF]")
 debug = True
 
 CONFIG = mw.addonManager.getConfig(__name__)
@@ -60,6 +62,45 @@ KANJI_STATS = load_stats()
 def debugPrint(message):
     if debug:
         print("DEBUG:", message)
+
+
+def kanaRenderer(char):
+    """Render hiragana or katakana stroke data from KanjiVG."""
+    global KANJI_CACHE
+    
+    # Check cache first
+    if char in KANJI_CACHE:
+        debugPrint(f"Loading kana {char} from cache")
+        return KANJI_CACHE[char]
+    
+    # Fetch from KanjiVG if not in cache
+    debugPrint(f"Fetching kana {char} from KanjiVG")
+    try:
+        svgHTML = fetch_kanjivg_svg(char)
+        strokeData = extract_stroke_paths_from_svg(svgHTML, char)
+        
+        # Save to cache
+        KANJI_CACHE[char] = strokeData
+        save_cache(KANJI_CACHE)
+        
+        return strokeData
+    except Exception as e:
+        debugPrint(f"Error fetching kana {char} from KanjiVG: {e}")
+        return []
+
+
+def fetch_kanjivg_svg(char):
+    """Fetch SVG from KanjiVG GitHub repository."""
+    # Convert character to Unicode hex (5 digits, lowercase)
+    code_point = format(ord(char), '05x')
+    url = f"https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/{code_point}.svg"
+    
+    try:
+        with urllib.request.urlopen(url) as response:
+            svg_bytes = response.read()
+        return svg_bytes.decode("utf-8", errors="ignore")
+    except urllib.error.HTTPError as e:
+        raise ValueError(f"Character {char} (U+{code_point.upper()}) not found in KanjiVG: {e}")
 
 
 def kanjiRenderer(char):
@@ -288,33 +329,47 @@ def _clear_canvas_ui():
 def _handle_side(card, use_answer: bool):
     """Common logic for front/back depending on config."""
     html = card.a() if use_answer else card.q()
+    
+    # Find all Japanese characters (kanji, hiragana, katakana)
     found_kanji = KANJI_REGEX.findall(html)
+    found_hiragana = HIRAGANA_REGEX.findall(html)
+    found_katakana = KATAKANA_REGEX.findall(html)
+    
+    all_chars = found_kanji + found_hiragana + found_katakana
     debugPrint(html)
 
-    if not found_kanji:
+    if not all_chars:
         return
 
-    unique_kanji = list(dict.fromkeys(found_kanji))
-    print("Detected Kanji on this card:", "".join(unique_kanji))
+    unique_chars = list(dict.fromkeys(all_chars))
+    print("Detected Japanese characters on this card:", "".join(unique_chars))
 
-    kanji_list = []
-    for ch in unique_kanji:
+    char_list = []
+    for ch in unique_chars:
         try:
-            strokes = kanjiRenderer(ch)
-            kanji_list.append({
-                "char": ch,
-                "strokes": strokes,
-            })
+            # Determine character type and get appropriate stroke data
+            if KANJI_REGEX.match(ch):
+                strokes = kanjiRenderer(ch)
+            elif HIRAGANA_REGEX.match(ch) or KATAKANA_REGEX.match(ch):
+                strokes = kanaRenderer(ch)
+            else:
+                continue
+            
+            if strokes:  # Only add if we have stroke data
+                char_list.append({
+                    "char": ch,
+                    "strokes": strokes,
+                })
         except Exception as e:
             debugPrint(f"Error getting strokes for {ch}: {e}")
 
-    if not kanji_list:
+    if not char_list:
         return
 
     # Detect card type: 0=new, 1=learning, 2=review, 3=relearning
     card_type = card.type if hasattr(card, 'type') else 0
     
-    js_data = f"window.kanjiData = {json.dumps(kanji_list)};"
+    js_data = f"window.kanjiData = {json.dumps(char_list)};"
     js_card_type = f"window.kanjiCardType = {card_type};"
     mw.reviewer.web.eval(js_data)
     mw.reviewer.web.eval(js_card_type)

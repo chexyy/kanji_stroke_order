@@ -2005,5 +2005,23 @@
     "totalRedraws": 0,
     "totalTime": 1769983175284,
     "lastAttempt": 1769983175284
+  },
+  "し": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1770065683191,
+    "lastAttempt": 1770065683191
+  },
+  "ゅ": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1770066103627,
+    "lastAttempt": 1770066103627
   }
 }
