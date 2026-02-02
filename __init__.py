@@ -1,12 +1,13 @@
 from aqt import mw
 from aqt import gui_hooks
-from aqt.qt import QMessageBox
+from aqt.qt import QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QAction, QAbstractItemView, QComboBox, QCalendarWidget
 import xml.etree.ElementTree as ET
 import re
 import urllib.parse
 import urllib.request
 import json
 import os
+from datetime import datetime, timedelta
 
 KANJI_REGEX = re.compile(r"[\u4E00-\u9FFF]")
 HIRAGANA_REGEX = re.compile(r"[\u3040-\u309F]")
@@ -18,6 +19,7 @@ CONFIG = mw.addonManager.getConfig(__name__)
 # Cache file path in the addon directory
 CACHE_FILE = os.path.join(os.path.dirname(__file__), "kanji_cache.json")
 STATS_FILE = os.path.join(os.path.dirname(__file__), "kanji_stats.json")
+CARD_STATS_FILE = os.path.join(os.path.dirname(__file__), "card_stats.json")
 
 def load_cache():
     """Load kanji stroke data from cache file."""
@@ -55,9 +57,28 @@ def save_stats(stats):
     except Exception as e:
         debugPrint(f"Error saving stats: {e}")
 
+def load_card_stats():
+    """Load card stats from card stats file."""
+    if os.path.exists(CARD_STATS_FILE):
+        try:
+            with open(CARD_STATS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            debugPrint(f"Error loading card stats: {e}")
+    return {}
+
+def save_card_stats(stats):
+    """Save card stats to card stats file."""
+    try:
+        with open(CARD_STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(stats, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        debugPrint(f"Error saving card stats: {e}")
+
 # Load cache and stats at startup
 KANJI_CACHE = load_cache()
 KANJI_STATS = load_stats()
+CARD_STATS = load_card_stats()
 
 def debugPrint(message):
     if debug:
@@ -343,6 +364,21 @@ def _handle_side(card, use_answer: bool):
 
     unique_chars = list(dict.fromkeys(all_chars))
     print("Detected Japanese characters on this card:", "".join(unique_chars))
+    
+    # Store card front text for practice menu (only on question side)
+    if not use_answer:
+        card_text = "".join(unique_chars)
+        card_id = str(card.id)
+        global CARD_STATS
+        if card_id not in CARD_STATS:
+            CARD_STATS[card_id] = {
+                'frontText': card_text,
+                'lastReviewed': datetime.now().isoformat()
+            }
+        else:
+            CARD_STATS[card_id]['frontText'] = card_text
+            CARD_STATS[card_id]['lastReviewed'] = datetime.now().isoformat()
+        save_card_stats(CARD_STATS)
 
     char_list = []
     for ch in unique_chars:
@@ -1285,6 +1321,7 @@ def inject_drawing_canvas():
                         stats.totalRedraws += totalRedraws;
                         stats.totalTime += sessionTime;
                         stats.lastAttempt = Date.now();
+                        stats.lastReviewDate = new Date().toISOString();
                         
                         // Update consecutive correct
                         if (strokeErrors === 0 && directionErrors === 0) {
@@ -1401,6 +1438,610 @@ def inject_drawing_canvas():
     })();
     """
     mw.reviewer.web.eval(js)
+
+
+# ============================================================================
+# Phase 2A: Practice Menu UI
+# ============================================================================
+
+class KanjiPracticeDialog(QDialog):
+    """Standalone practice interface for kanji stroke order practice."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Kanji Stroke Order Practice")
+        self.setMinimumSize(800, 600)
+        
+        # Available cards from card stats
+        global CARD_STATS
+        self.all_cards = CARD_STATS
+        self.selected_cards = []
+        self.date_range_start = None
+        self.date_range_end = None
+        
+        self.setup_ui()
+    
+    def setup_ui(self):
+        """Create the dialog UI."""
+        layout = QVBoxLayout()
+        
+        # Title
+        title = QLabel("<h2>Kanji Stroke Order Practice</h2>")
+        layout.addWidget(title)
+        
+        # Info label
+        self.info_label = QLabel(f"Available cards: {len(self.all_cards)} (from your review history)")
+        layout.addWidget(self.info_label)
+        
+        # Time range filter
+        time_layout = QHBoxLayout()
+        time_label = QLabel("Filter by last review:")
+        self.time_range_combo = QComboBox()
+        self.time_range_combo.addItems([
+            "All time",
+            "Last 1 day",
+            "Last 2 days",
+            "Last 3 days",
+            "Last 1 week",
+            "Last 2 weeks",
+            "Last 1 month",
+            "Custom..."
+        ])
+        self.time_range_combo.currentTextChanged.connect(self.on_time_range_changed)
+        time_layout.addWidget(time_label)
+        time_layout.addWidget(self.time_range_combo)
+        time_layout.addStretch()
+        layout.addLayout(time_layout)
+        
+        # Date range display (shown when time range selected)
+        self.date_range_label = QLabel("")
+        self.date_range_label.setVisible(False)
+        self.date_range_label.setStyleSheet("padding: 5px; background-color: #4CAF50; border-radius: 3px;")
+        layout.addWidget(self.date_range_label)
+        layout.addWidget(self.date_range_label)
+        
+        # Search box
+        search_layout = QHBoxLayout()
+        search_label = QLabel("Search:")
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Type to filter cards...")
+        self.search_box.textChanged.connect(self.filter_cards)
+        search_layout.addWidget(search_label)
+        search_layout.addWidget(self.search_box)
+        layout.addLayout(search_layout)
+        
+        # Card list
+        list_label = QLabel("Select cards to practice:")
+        layout.addWidget(list_label)
+        
+        self.card_list = QListWidget()
+        self.card_list.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        self.populate_card_list()
+        layout.addWidget(self.card_list)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        select_all_btn = QPushButton("Select All")
+        select_all_btn.clicked.connect(self.select_all)
+        button_layout.addWidget(select_all_btn)
+        
+        clear_btn = QPushButton("Clear Selection")
+        clear_btn.clicked.connect(self.clear_selection)
+        button_layout.addWidget(clear_btn)
+        
+        button_layout.addStretch()
+        
+        start_btn = QPushButton("Start Practice")
+        start_btn.clicked.connect(self.start_practice)
+        start_btn.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; padding: 8px; }")
+        button_layout.addWidget(start_btn)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_btn)
+        
+        layout.addLayout(button_layout)
+        
+        self.setLayout(layout)
+    
+    def populate_card_list(self, filter_text=""):
+        """Populate the list with available cards."""
+        self.card_list.clear()
+        
+        filtered_cards = self.get_filtered_cards_by_date()
+        
+        # Sort cards by last reviewed date (most recent first)
+        sorted_cards = sorted(
+            filtered_cards.items(),
+            key=lambda x: x[1].get('lastReviewed', ''),
+            reverse=True
+        )
+        
+        for card_id, card_data in sorted_cards:
+            front_text = card_data.get('frontText', '')
+            
+            # Apply text filter
+            if filter_text and filter_text not in front_text:
+                continue
+            
+            # Get last reviewed date
+            last_reviewed = card_data.get('lastReviewed', None)
+            review_text = ""
+            
+            if last_reviewed:
+                try:
+                    review_date = datetime.fromisoformat(last_reviewed)
+                    days_ago = (datetime.now() - review_date).days
+                    if days_ago == 0:
+                        review_text = " - reviewed today"
+                    elif days_ago == 1:
+                        review_text = " - reviewed yesterday"
+                    else:
+                        review_text = f" - reviewed {days_ago} days ago"
+                except:
+                    pass
+            
+            item_text = f"{front_text}{review_text}"
+            
+            item = QListWidgetItem(item_text)
+            item.setData(256, card_id)  # Store card ID in user role
+            item.setData(257, front_text)  # Store front text
+            self.card_list.addItem(item)
+        
+        # Update info label
+        self.info_label.setText(f"Showing {self.card_list.count()} of {len(self.all_cards)} cards")
+    
+    def get_filtered_cards_by_date(self):
+        """Filter cards using Anki's rated search."""
+        # Use Anki's search functionality to find rated cards
+        col = mw.col
+        
+        # Calculate days for rated search (add 1 to include the start day)
+        if self.date_range_start is None:
+            # "All time" - use a very large number to get all reviewed cards
+            days = 36500  # ~100 years
+        else:
+            days = (datetime.now() - self.date_range_start).days + 1
+            if days < 1:
+                days = 1
+        
+        # Search for cards rated in the last N days
+        search_query = f"rated:{days}"
+        
+        try:
+            debugPrint(f"Searching with query: {search_query}")
+            # Get card IDs from search
+            card_ids = col.find_cards(search_query)
+            debugPrint(f"Found {len(card_ids)} cards from rated search")
+            
+            # Build filtered dict by getting card data directly from Anki
+            filtered = {}
+            for card_id in card_ids:
+                try:
+                    card = col.get_card(card_id)
+                    note = card.note()
+                    
+                    # Get the question (front) of the card
+                    question_html = card.question()
+                    
+                    # Extract Japanese characters
+                    found_kanji = KANJI_REGEX.findall(question_html)
+                    found_hiragana = HIRAGANA_REGEX.findall(question_html)
+                    found_katakana = KATAKANA_REGEX.findall(question_html)
+                    
+                    all_chars = found_kanji + found_hiragana + found_katakana
+                    
+                    if all_chars:
+                        unique_chars = list(dict.fromkeys(all_chars))
+                        front_text = "".join(unique_chars)
+                        
+                        card_id_str = str(card_id)
+                        
+                        # Get the actual last review date from the card's review history
+                        # card.id is in milliseconds, card.mod is last modified timestamp
+                        # We need to get from revlog
+                        revlog_entries = col.db.all(
+                            "SELECT id FROM revlog WHERE cid = ? ORDER BY id DESC LIMIT 1",
+                            card_id
+                        )
+                        
+                        if revlog_entries:
+                            # revlog.id is timestamp in milliseconds
+                            last_review_ms = revlog_entries[0][0]
+                            last_review_date = datetime.fromtimestamp(last_review_ms / 1000.0)
+                            last_reviewed = last_review_date.isoformat()
+                        else:
+                            last_reviewed = datetime.now().isoformat()
+                        
+                        # Check if we have it in CARD_STATS, otherwise create entry
+                        if card_id_str in self.all_cards:
+                            # Update with actual review date
+                            filtered[card_id_str] = {
+                                'frontText': front_text,
+                                'lastReviewed': last_reviewed
+                            }
+                        else:
+                            # Create new entry with card data from Anki
+                            filtered[card_id_str] = {
+                                'frontText': front_text,
+                                'lastReviewed': last_reviewed
+                            }
+                except Exception as e:
+                    debugPrint(f"Error processing card {card_id}: {e}")
+                    continue
+            
+            debugPrint(f"Filtered to {len(filtered)} cards with Japanese characters")
+            return filtered
+        except Exception as e:
+            debugPrint(f"Error searching rated cards: {e}")
+            import traceback
+            debugPrint(traceback.format_exc())
+            return self.all_cards
+    
+    def on_time_range_changed(self, text):
+        """Handle time range dropdown selection."""
+        if text == "All time":
+            self.date_range_start = None
+            self.date_range_label.setVisible(False)
+        elif text == "Custom...":
+            # Show calendar popup
+            self.show_calendar_popup()
+            return  # Don't repopulate yet, wait for calendar selection
+        else:
+            # Preset time ranges - calculate start date for rated search
+            today = datetime.now()
+            
+            if "1 day" in text:
+                self.date_range_start = today - timedelta(days=1)
+                self.date_range_label.setText("Showing cards reviewed in the last 1 day")
+            elif "2 days" in text:
+                self.date_range_start = today - timedelta(days=2)
+                self.date_range_label.setText("Showing cards reviewed in the last 2 days")
+            elif "3 days" in text:
+                self.date_range_start = today - timedelta(days=3)
+                self.date_range_label.setText("Showing cards reviewed in the last 3 days")
+            elif "1 week" in text:
+                self.date_range_start = today - timedelta(weeks=1)
+                self.date_range_label.setText("Showing cards reviewed in the last week")
+            elif "2 weeks" in text:
+                self.date_range_start = today - timedelta(weeks=2)
+                self.date_range_label.setText("Showing cards reviewed in the last 2 weeks")
+            elif "1 month" in text:
+                self.date_range_start = today - timedelta(days=30)
+                self.date_range_label.setText("Showing cards reviewed in the last month")
+            
+            self.date_range_label.setVisible(True)
+        
+        self.populate_card_list(self.search_box.text())
+    
+    def show_calendar_popup(self):
+        """Show a popup calendar dialog for selecting a single date."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Date")
+        dialog.setModal(True)
+        
+        layout = QVBoxLayout()
+        
+        info = QLabel("Click a date to show cards reviewed from that day to today")
+        info.setStyleSheet("padding: 10px; background-color: #4CAF50; border-radius: 3px;")
+        layout.addWidget(info)
+        
+        calendar = QCalendarWidget()
+        calendar.setMaximumDate(calendar.selectedDate())  # Can't select future dates
+        layout.addWidget(calendar)
+        
+        btn_layout = QHBoxLayout()
+        ok_btn = QPushButton("OK")
+        cancel_btn = QPushButton("Cancel")
+        btn_layout.addStretch()
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+        
+        dialog.setLayout(layout)
+        
+        def on_ok():
+            selected_date = calendar.selectedDate()
+            self.date_range_start = datetime(selected_date.year(), selected_date.month(), selected_date.day())
+            days_ago = (datetime.now() - self.date_range_start).days
+            day_text = "day" if days_ago == 1 else "days"
+            self.date_range_label.setText(f"Showing cards reviewed from {self.date_range_start.strftime('%Y-%m-%d')} to today ({days_ago} {day_text})")
+            self.date_range_label.setVisible(True)
+            self.populate_card_list(self.search_box.text())
+            dialog.accept()
+        
+        def on_cancel():
+            # Reset to "All time"
+            self.time_range_combo.setCurrentText("All time")
+            dialog.reject()
+        
+        ok_btn.clicked.connect(on_ok)
+        cancel_btn.clicked.connect(on_cancel)
+        
+        dialog.exec()
+    
+    def filter_cards(self, text):
+        """Filter card list based on search text."""
+        self.populate_card_list(text)
+    
+    def select_all(self):
+        """Select all visible items."""
+        for i in range(self.card_list.count()):
+            self.card_list.item(i).setSelected(True)
+    
+    def clear_selection(self):
+        """Clear all selections."""
+        self.card_list.clearSelection()
+    
+    def start_practice(self):
+        """Start practice with selected cards."""
+        selected_items = self.card_list.selectedItems()
+        
+        if not selected_items:
+            QMessageBox.warning(self, "No Selection", "Please select at least one card to practice.")
+            return
+        
+        # Extract kanji from selected cards
+        all_kanji = []
+        for item in selected_items:
+            front_text = item.data(257)  # Get front text
+            # Extract all Japanese characters from the card
+            kanji_chars = KANJI_REGEX.findall(front_text)
+            hiragana_chars = HIRAGANA_REGEX.findall(front_text)
+            katakana_chars = KATAKANA_REGEX.findall(front_text)
+            all_kanji.extend(kanji_chars + hiragana_chars + katakana_chars)
+        
+        # Remove duplicates while preserving order
+        unique_kanji = list(dict.fromkeys(all_kanji))
+        
+        if not unique_kanji:
+            QMessageBox.warning(self, "No Characters", "Selected cards contain no Japanese characters.")
+            return
+        
+        # Open practice window
+        self.practice_window = KanjiPracticeWindow(unique_kanji, self)
+        self.practice_window.show()
+        self.accept()
+
+
+class KanjiPracticeWindow(QDialog):
+    """Standalone practice window with drawing canvas."""
+    
+    def __init__(self, kanji_list, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Kanji Practice Session")
+        self.setMinimumSize(500, 700)
+        
+        self.kanji_list = kanji_list
+        self.setup_ui()
+        self.inject_practice_ui()
+    
+    def setup_ui(self):
+        """Create the practice window UI."""
+        layout = QVBoxLayout()
+        
+        # Info bar
+        info = QLabel(f"Practicing {len(self.kanji_list)} characters")
+        info.setStyleSheet("padding: 10px; background-color: #f0f0f0; border-radius: 5px;")
+        layout.addWidget(info)
+        
+        # Web view container (canvas will be injected here)
+        from aqt.webview import AnkiWebView
+        self.web = AnkiWebView(parent=self)
+        self.web.setMinimumHeight(600)
+        layout.addWidget(self.web)
+        
+        # Close button
+        close_btn = QPushButton("Close Practice")
+        close_btn.clicked.connect(self.close)
+        layout.addWidget(close_btn)
+        
+        self.setLayout(layout)
+    
+    def inject_practice_ui(self):
+        """Inject the drawing canvas into the webview."""
+        # Prepare kanji data
+        char_list = []
+        for ch in self.kanji_list:
+            try:
+                if KANJI_REGEX.match(ch):
+                    strokes = kanjiRenderer(ch)
+                elif HIRAGANA_REGEX.match(ch) or KATAKANA_REGEX.match(ch):
+                    strokes = kanaRenderer(ch)
+                else:
+                    continue
+                
+                if strokes:
+                    char_list.append({
+                        "char": ch,
+                        "strokes": strokes,
+                    })
+            except Exception as e:
+                debugPrint(f"Error loading {ch}: {e}")
+        
+        if not char_list:
+            QMessageBox.warning(self, "Error", "Could not load stroke data for selected kanji.")
+            self.close()
+            return
+        
+        # Set basic HTML
+        self.web.stdHtml("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {
+                    margin: 0;
+                    padding: 20px;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                }
+            </style>
+        </head>
+        <body>
+            <div id="container"></div>
+        </body>
+        </html>
+        """)
+        
+        # Inject kanji data
+        js_data = f"window.kanjiData = {json.dumps(char_list)};"
+        js_config = f"""
+        window.KSO_CONFIG = {{
+            hitRatio: {CONFIG.get('stroke_hit_ratio', 0.6)},
+            corridorWidth: {CONFIG.get('stroke_corridor_width', 10)},
+            autoAdvanceKanji: {json.dumps(CONFIG.get('auto_advance_kanji', False))},
+            validateDirection: {json.dumps(CONFIG.get('check_direction', True))},
+            strictStrokeOrder: {json.dumps(CONFIG.get('strict_stroke_order', True))},
+            dueMode: 2
+        }};
+        window.KSO_STATS = {json.dumps(KANJI_STATS)};
+        window.kanjiCardType = 0;
+        """
+        
+        self.web.eval(js_data)
+        self.web.eval(js_config)
+        
+        # Inject the drawing canvas (reuse the same JS from inject_drawing_canvas)
+        # We'll use the same canvas code but target the webview
+        inject_drawing_canvas_to_webview(self.web)
+
+
+def inject_drawing_canvas_to_webview(webview):
+    """Inject the drawing canvas into a standalone webview."""
+    # Same JS as inject_drawing_canvas() but adapted for standalone use
+    js = r"""
+    (function() {
+        console.log('[Practice] Starting kanji drawing UI...');
+        
+        const existingContainer = document.getElementById('kanji-draw-container');
+        if (existingContainer) {
+            existingContainer.remove();
+        }
+
+        const cfg = window.KSO_CONFIG || {
+            hitRatio: 0.6,
+            corridorWidth: 10,
+            autoAdvanceKanji: false,
+            validateDirection: false,
+            strictStrokeOrder: true,
+            dueMode: 2,
+        };
+        const HIT_RATIO = cfg.hitRatio;
+        const CORRIDOR_WIDTH = cfg.corridorWidth;
+        const AUTO_ADVANCE_KANJI = cfg.autoAdvanceKanji;
+        const VALIDATE_DIRECTION = !!cfg.validateDirection;
+        const STRICT_STROKE_ORDER = !!cfg.strictStrokeOrder;
+        const DUE_MODE = cfg.dueMode;
+        
+        const cardType = window.kanjiCardType || 0;
+        const isDueCard = (cardType === 2 || cardType === 3);
+
+        const rawKanjiData = window.kanjiData || [];
+        if (!rawKanjiData.length) {
+            console.log('[Practice] No kanji data available');
+            return;
+        }
+
+        const bodyStyle = getComputedStyle(document.body);
+        const isDark = false; // Default to light theme for practice window
+
+        const baseStrokeCurrentColor = 'rgba(0, 0, 0, 0.18)';
+        const baseStrokeOtherColor = 'rgba(0, 0, 0, 0.05)';
+        const gridColor = 'rgba(0, 0, 0, 0.15)';
+        const animatedStrokeColor = 'rgba(0, 0, 0, 0.25)';
+    """ + """
+        const container = document.createElement('div');
+        container.id = 'kanji-draw-container';
+        container.style.marginTop = '20px';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.alignItems = 'center';
+
+        const kanjiDisplay = document.createElement('div');
+        kanjiDisplay.id = 'current-kanji-display';
+        kanjiDisplay.style.fontSize = '32px';
+        kanjiDisplay.style.fontWeight = 'bold';
+        kanjiDisplay.style.marginBottom = '12px';
+        kanjiDisplay.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+        container.appendChild(kanjiDisplay);
+
+        const statsDisplay = document.createElement('div');
+        statsDisplay.id = 'kanji-stats-display';
+        statsDisplay.style.fontSize = '14px';
+        statsDisplay.style.marginBottom = '12px';
+        statsDisplay.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+        statsDisplay.style.color = 'rgba(0, 0, 0, 0.7)';
+        container.appendChild(statsDisplay);
+
+        const canvas = document.createElement('canvas');
+        canvas.id = 'kanjiCanvas';
+        canvas.width = 400;
+        canvas.height = 400;
+        canvas.style.border = '2px solid #333';
+        canvas.style.borderRadius = '8px';
+        canvas.style.touchAction = 'none';
+        container.appendChild(canvas);
+
+        const clearBtn = document.createElement('button');
+        clearBtn.textContent = 'Clear';
+        clearBtn.style.marginTop = '12px';
+        clearBtn.style.padding = '10px 20px';
+        clearBtn.style.fontSize = '16px';
+        clearBtn.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+        clearBtn.style.fontWeight = '600';
+        clearBtn.style.cursor = 'pointer';
+        container.appendChild(clearBtn);
+
+        const navContainer = document.createElement('div');
+        navContainer.style.marginTop = '12px';
+        navContainer.style.display = 'flex';
+        navContainer.style.gap = '12px';
+
+        let prevBtn = document.createElement('button');
+        prevBtn.textContent = 'Previous';
+        prevBtn.style.padding = '8px 16px';
+        prevBtn.style.cursor = 'pointer';
+        prevBtn.style.fontFamily = clearBtn.style.fontFamily;
+        prevBtn.style.fontWeight = clearBtn.style.fontWeight;
+
+        let nextBtn = document.createElement('button');
+        nextBtn.textContent = 'Next';
+        nextBtn.style.padding = '8px 16px';
+        nextBtn.style.cursor = 'pointer';
+        nextBtn.style.fontFamily = clearBtn.style.fontFamily;
+        nextBtn.style.fontWeight = clearBtn.style.fontWeight;
+
+        navContainer.appendChild(prevBtn);
+        navContainer.appendChild(nextBtn);
+        container.appendChild(navContainer);
+
+        document.body.appendChild(container);
+    """ + inject_drawing_canvas.__code__.co_consts[1][2000:]  # Reuse the rest of the canvas logic
+    
+    webview.eval(js)
+
+
+def open_practice_dialog():
+    """Open the practice dialog."""
+    dialog = KanjiPracticeDialog(mw)
+    dialog.exec()
+
+
+# Register menu item
+def setup_menu():
+    """Add Practice menu to Anki's Tools menu."""
+    action = QAction("Kanji Sentence Practice...", mw)
+    action.triggered.connect(open_practice_dialog)
+    mw.form.menuTools.addAction(action)
+
+
+setup_menu()
 
 
 # Show a message box when the add-on is loaded
