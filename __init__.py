@@ -1,18 +1,28 @@
 from aqt import mw
 from aqt import gui_hooks
-from aqt.qt import QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QAction, QAbstractItemView, QComboBox, QCalendarWidget, QTextEdit, QFileDialog, QGroupBox
+from aqt.qt import QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QAction, QAbstractItemView, QComboBox, QCalendarWidget, QTextEdit, QFileDialog, QGroupBox, QTimer, Qt
 import xml.etree.ElementTree as ET
 import re
 import urllib.parse
 import urllib.request
 import json
 import os
+import sys
+import base64
+import io
 from datetime import datetime, timedelta
+from confettiJS import confettiJs
+
+# Debug flag and function (defined early so it can be used during imports)
+debug = True
+
+def debugPrint(message):
+    if debug:
+        print("DEBUG:", message)
 
 KANJI_REGEX = re.compile(r"[\u4E00-\u9FFF]")
 HIRAGANA_REGEX = re.compile(r"[\u3040-\u309F]")
 KATAKANA_REGEX = re.compile(r"[\u30A0-\u30FF]")
-debug = True
 
 CONFIG = mw.addonManager.getConfig(__name__)
 
@@ -88,6 +98,7 @@ def load_ai_config():
         'api_url': '',
         'api_key': '',
         'model': '',
+        'ocr_model': '',
         'instructions': '',
         'pdf_path': ''
     }
@@ -105,9 +116,123 @@ KANJI_CACHE = load_cache()
 KANJI_STATS = load_stats()
 CARD_STATS = load_card_stats()
 
-def debugPrint(message):
-    if debug:
-        print("DEBUG:", message)
+# OpenRouter API configuration for OCR (using ai_config.json)
+AI_CONFIG = load_ai_config()
+OPENROUTER_API_KEY = AI_CONFIG.get('api_key', '')
+OPENROUTER_API_URL = AI_CONFIG.get('api_url', 'https://openrouter.ai/api/v1/chat/completions')
+OPENROUTER_MODEL = AI_CONFIG.get('ocr_model') or 'google/gemini-2.0-flash-001'
+OCR_AVAILABLE = bool(OPENROUTER_API_KEY)
+
+def recognize_handwriting(image_data_base64):
+    """Recognize Japanese handwritten characters from image based on the following argument
+    
+    Args:
+        image_data_base64: Base64 encoded PNG image from canvas
+        
+    Returns:
+        tuple: (recognized_text, confidence, all_results) or (None, 0, [])
+    """
+    # Reload config to get latest API key and settings
+    ai_config = load_ai_config()
+    api_key = ai_config.get('api_key', '')
+    api_url = ai_config.get('api_url') or 'https://openrouter.ai/api/v1/chat/completions'
+    ocr_model = ai_config.get('ocr_model') or 'google/gemini-2.0-flash-001'
+    
+    if not api_key:
+        debugPrint("OCR not available - OpenRouter API key not configured")
+        return None, 0, []
+    
+    try:
+        debugPrint("Recognizing drawing with OpenRouter API...")
+        
+        # Remove data URL prefix if present
+        if ',' in image_data_base64:
+            image_data_base64 = image_data_base64.split(',', 1)[1]
+        
+        # Prepare API request
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": ocr_model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": """Based on this image of Japanese handwriting, what are these Japanese character(s)? Return a JSON formatted as:
+{
+    "characters": "<characters>",
+    "confidence": <confidenceScore>
+}
+
+1. the characters as a string, with no explanation or thought process
+2. a percentage score for 0-100 rating confidence of character identification"""
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{image_data_base64}"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        # Make API request
+        request = urllib.request.Request(
+            api_url,
+            data=json.dumps(payload).encode('utf-8'),
+            headers=headers
+        )
+        
+        with urllib.request.urlopen(request, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            
+        debugPrint(f"API response: {result}")
+        
+        # Extract recognized text
+        if result.get('choices') and len(result['choices']) > 0:
+            content = result['choices'][0]['message']['content'].strip()
+            debugPrint(f"OCR raw response: '{content}'")
+            
+            # Try to parse JSON response
+            try:
+                # Remove markdown code blocks if present
+                cleaned_content = content
+                if content.startswith('```'):
+                    cleaned_content = re.sub(r'^```(?:json)?\s*\n', '', content)
+                    cleaned_content = re.sub(r'\n```\s*$', '', cleaned_content)
+                    debugPrint(f"Cleaned content: '{cleaned_content}'")
+                
+                ocr_result = json.loads(cleaned_content)
+                recognized_text = ocr_result.get('characters', '').strip()
+                confidence_score = ocr_result.get('confidence', 50) / 100.0  # Convert 0-100 to 0.0-1.0
+                
+                debugPrint(f"OCR detected: '{recognized_text}' with confidence {confidence_score:.2f}")
+                
+                return recognized_text, confidence_score, [(recognized_text, confidence_score)]
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                # Fallback: treat entire response as the characters
+                debugPrint(f"Failed to parse JSON response, using raw text: {e}")
+                recognized_text = content
+                return recognized_text, 0.5, [(recognized_text, 0.5)]
+        
+        return None, 0, []
+        
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode('utf-8') if e.fp else str(e)
+        debugPrint(f"HTTP Error in OCR recognition: {e.code} - {error_body}")
+        return None, 0, []
+    except Exception as e:
+        debugPrint(f"Error in OCR recognition: {e}")
+        import traceback
+        traceback.print_exc()
+        return None, 0, []
 
 
 def kanaRenderer(char):
@@ -473,6 +598,27 @@ def _handle_webview_message(handled, message, context):
                 debugPrint(f"Saved stats for {kanji}: {stats}")
             except Exception as e:
                 debugPrint(f"Error saving stats: {e}")
+        return (True, "")
+    
+    elif message.startswith("recognizeDrawing:"):
+        # Format: recognizeDrawing:<base64_image_data>
+        image_data = message.split(":", 1)[1]
+        debugPrint("Recognizing drawing with OpenRouter API...")
+        
+        text, confidence, all_results = recognize_handwriting(image_data)
+        
+        if text:
+            # Send results back to JavaScript
+            result_data = {
+                'text': text,
+                'confidence': confidence,
+                'alternatives': [{'text': t, 'conf': c} for t, c in all_results[:5]]
+            }
+            result_json = json.dumps(result_data, ensure_ascii=False)
+            mw.reviewer.web.eval(f"window.handleOCRResult && window.handleOCRResult({result_json});")
+        else:
+            mw.reviewer.web.eval("window.handleOCRResult && window.handleOCRResult(null);")
+        
         return (True, "")
     
     return handled
@@ -1512,15 +1658,25 @@ class AIConfigDialog(QDialog):
         key_layout.addWidget(self.key_input)
         api_layout.addLayout(key_layout)
         
-        # Model
+        # Model for sentence generation
         model_layout = QHBoxLayout()
-        model_label = QLabel("Model:")
+        model_label = QLabel("Sentence Generation & Feedback Model:")
         self.model_input = QLineEdit()
-        self.model_input.setPlaceholderText("gpt-4, claude-3-opus, etc.")
+        self.model_input.setPlaceholderText("google/gemini-2.5-flash")
         self.model_input.setText(self.config.get('model', ''))
         model_layout.addWidget(model_label)
         model_layout.addWidget(self.model_input)
         api_layout.addLayout(model_layout)
+        
+        # Model for OCR
+        ocr_model_layout = QHBoxLayout()
+        ocr_model_label = QLabel("Handwriting Recognition Model:")
+        self.ocr_model_input = QLineEdit()
+        self.ocr_model_input.setPlaceholderText("google/gemini-2.0-flash-001")
+        self.ocr_model_input.setText(self.config.get('ocr_model', ''))
+        ocr_model_layout.addWidget(ocr_model_label)
+        ocr_model_layout.addWidget(self.ocr_model_input)
+        api_layout.addLayout(ocr_model_layout)
         
         api_group.setLayout(api_layout)
         layout.addWidget(api_group)
@@ -1610,6 +1766,7 @@ class AIConfigDialog(QDialog):
         self.config['api_url'] = self.url_input.text()
         self.config['api_key'] = self.key_input.text()
         self.config['model'] = self.model_input.text()
+        self.config['ocr_model'] = self.ocr_model_input.text()
         self.config['instructions'] = self.instructions_input.toPlainText()
         # Save to file
         save_ai_config(self.config)
@@ -1640,10 +1797,8 @@ class KanjiPracticeDialog(QDialog):
         # Restore saved sentence source selection
         if self.sentence_source == "ai":
             self.source_combo.setCurrentIndex(1)
-            self.config_ai_btn.setVisible(True)
         else:
             self.source_combo.setCurrentIndex(0)
-            self.config_ai_btn.setVisible(False)
     
     def setup_ui(self):
         """Create the dialog UI."""
@@ -1689,7 +1844,6 @@ class KanjiPracticeDialog(QDialog):
         
         self.config_ai_btn = QPushButton("Configure AI")
         self.config_ai_btn.clicked.connect(self.open_ai_config)
-        self.config_ai_btn.setVisible(False)
         
         source_layout.addWidget(source_label)
         source_layout.addWidget(self.source_combo)
@@ -1794,7 +1948,8 @@ class KanjiPracticeDialog(QDialog):
             self.card_list.addItem(item)
         
         # Update info label
-        self.info_label.setText(f"Showing {self.card_list.count()} of {len(self.all_cards)} cards")
+        total_cards = len(filtered_cards)
+        self.info_label.setText(f"Showing {self.card_list.count()} of {total_cards} cards")
     
     def get_filtered_cards_by_date(self):
         """Filter cards using Anki's rated search."""
@@ -1969,10 +2124,8 @@ class KanjiPracticeDialog(QDialog):
         """Handle sentence source selection change."""
         if index == 0:
             self.sentence_source = "fields"
-            self.config_ai_btn.setVisible(False)
         else:
             self.sentence_source = "ai"
-            self.config_ai_btn.setVisible(True)
         
         # Save selection to config
         self.ai_config['sentence_source'] = self.sentence_source
@@ -1999,140 +2152,60 @@ class KanjiPracticeDialog(QDialog):
     
     def start_practice(self):
         """Start practice with selected cards."""
-        selected_items = self.card_list.selectedItems()
-        
-        if not selected_items:
-            QMessageBox.warning(self, "No Selection", "Please select at least one card to practice.")
-            return
-        
-        # Extract kanji from selected cards
-        all_kanji = []
-        for item in selected_items:
-            front_text = item.data(257)  # Get front text
-            # Extract all Japanese characters from the card
-            kanji_chars = KANJI_REGEX.findall(front_text)
-            hiragana_chars = HIRAGANA_REGEX.findall(front_text)
-            katakana_chars = KATAKANA_REGEX.findall(front_text)
-            all_kanji.extend(kanji_chars + hiragana_chars + katakana_chars)
-        
-        # Remove duplicates while preserving order
-        unique_kanji = list(dict.fromkeys(all_kanji))
-        
-        if not unique_kanji:
-            QMessageBox.warning(self, "No Characters", "Selected cards contain no Japanese characters.")
-            return
-        
-        # Open practice window
-        self.practice_window = KanjiPracticeWindow(unique_kanji, self)
-        self.practice_window.show()
-        self.accept()
-
-
-class KanjiPracticeWindow(QDialog):
-    """Standalone practice window with drawing canvas."""
-    
-    def __init__(self, kanji_list, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Kanji Practice Session")
-        self.setMinimumSize(500, 700)
-        
-        self.kanji_list = kanji_list
-        self.setup_ui()
-        self.inject_practice_ui()
-    
-    def setup_ui(self):
-        """Create the practice window UI."""
-        layout = QVBoxLayout()
-        
-        # Info bar
-        info = QLabel(f"Practicing {len(self.kanji_list)} characters")
-        info.setStyleSheet("padding: 10px; background-color: #f0f0f0; border-radius: 5px;")
-        layout.addWidget(info)
-        
-        # Web view container (canvas will be injected here)
-        from aqt.webview import AnkiWebView
-        self.web = AnkiWebView(parent=self)
-        self.web.setMinimumHeight(600)
-        layout.addWidget(self.web)
-        
-        # Close button
-        close_btn = QPushButton("Close Practice")
-        close_btn.clicked.connect(self.close)
-        layout.addWidget(close_btn)
-        
-        self.setLayout(layout)
-    
-    def inject_practice_ui(self):
-        """Inject the drawing canvas into the webview."""
-        # Prepare kanji data
-        char_list = []
-        for ch in self.kanji_list:
-            try:
-                if KANJI_REGEX.match(ch):
-                    strokes = kanjiRenderer(ch)
-                elif HIRAGANA_REGEX.match(ch) or KATAKANA_REGEX.match(ch):
-                    strokes = kanaRenderer(ch)
-                else:
-                    continue
-                
-                if strokes:
-                    char_list.append({
-                        "char": ch,
-                        "strokes": strokes,
+        try:
+            debugPrint("start_practice called")
+            
+            selected_items = self.card_list.selectedItems()
+            debugPrint(f"Selected items: {len(selected_items)}")
+            
+            if not selected_items:
+                QMessageBox.warning(self, "No Selection", "Please select at least one card to practice.")
+                return
+            
+            # Get card data for practice
+            card_data_list = []
+            for item in selected_items:
+                card_id = item.data(256)
+                try:
+                    card = mw.col.get_card(int(card_id))
+                    note = card.note()
+                    
+                    # Extract fields
+                    fields = {field: note[field] for field in note.keys()}
+                    card_data_list.append({
+                        'card_id': card_id,
+                        'fields': fields,
+                        'front_text': item.data(257)
                     })
-            except Exception as e:
-                debugPrint(f"Error loading {ch}: {e}")
-        
-        if not char_list:
-            QMessageBox.warning(self, "Error", "Could not load stroke data for selected kanji.")
-            self.close()
-            return
-        
-        # Set basic HTML
-        self.web.stdHtml("""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                body {
-                    margin: 0;
-                    padding: 20px;
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                }
-            </style>
-        </head>
-        <body>
-            <div id="container"></div>
-        </body>
-        </html>
-        """)
-        
-        # Inject kanji data
-        js_data = f"window.kanjiData = {json.dumps(char_list)};"
-        js_config = f"""
-        window.KSO_CONFIG = {{
-            hitRatio: {CONFIG.get('stroke_hit_ratio', 0.6)},
-            corridorWidth: {CONFIG.get('stroke_corridor_width', 10)},
-            autoAdvanceKanji: {json.dumps(CONFIG.get('auto_advance_kanji', False))},
-            validateDirection: {json.dumps(CONFIG.get('check_direction', True))},
-            strictStrokeOrder: {json.dumps(CONFIG.get('strict_stroke_order', True))},
-            dueMode: 2
-        }};
-        window.KSO_STATS = {json.dumps(KANJI_STATS)};
-        window.kanjiCardType = 0;
-        """
-        
-        self.web.eval(js_data)
-        self.web.eval(js_config)
-        
-        # Inject the drawing canvas (reuse the same JS from inject_drawing_canvas)
-        # We'll use the same canvas code but target the webview
-        inject_drawing_canvas_to_webview(self.web)
+                except Exception as e:
+                    debugPrint(f"Error loading card {card_id}: {e}")
+            
+            if not card_data_list:
+                QMessageBox.warning(self, "Error", "Could not load any card data.")
+                return
+            
+            debugPrint(f"Starting practice with {len(card_data_list)} cards")
+            
+            # Close this dialog
+            self.accept()
+            
+            # Open practice window (separate window, not in main reviewer)
+            # Pass None as parent to make it completely independent
+            practice_window = KanjiPracticeWindow(card_data_list, self.sentence_source, None)
+            practice_window.show()
+            
+            # Keep a reference to prevent garbage collection
+            mw._practice_window = practice_window
+            
+        except Exception as e:
+            debugPrint(f"Error in start_practice: {e}")
+            import traceback
+            debugPrint(traceback.format_exc())
+            QMessageBox.critical(self, "Error", f"Failed to start practice: {str(e)}")
+
+
+# NOTE: Duplicate KanjiPracticeWindow class removed
+# The working implementation with OpenRouter API OCR support is integrated above
 
 
 def inject_drawing_canvas_to_webview(webview):
@@ -2248,6 +2321,2089 @@ def inject_drawing_canvas_to_webview(webview):
     """ + inject_drawing_canvas.__code__.co_consts[1][2000:]  # Reuse the rest of the canvas logic
     
     webview.eval(js)
+
+
+class KanjiPracticeWindow(QDialog):
+    """Separate window for kanji practice."""
+    
+    def __init__(self, card_data_list, sentence_source, parent=None):
+        super().__init__(parent)
+        
+        # Import AnkiWebView
+        from aqt.webview import AnkiWebView
+        
+        self.card_data_list = card_data_list
+        self.sentence_source = sentence_source
+        self.current_index = 0
+        
+        # Cache for storing answers and feedback across navigation
+        self.card_cache = {}
+        
+        # Track completion status
+        self.answered_cards = set()  # Set of card indices that have been answered
+        self.correct_cards = set()   # Set of card indices that were correct
+        self.on_completion_screen = False  # Track if we're showing completion screen
+        self.completion_summary = None  # Cache AI summary for the session
+        
+        self.setWindowTitle("Kanji Practice")
+        self.setMinimumSize(900, 700)
+        
+        # Make window non-modal so user can interact with main Anki window
+        self.setModal(False)
+        
+        # Set window flags to show minimize/maximize buttons
+        from aqt.qt import Qt
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowMinMaxButtonsHint | Qt.WindowType.WindowCloseButtonHint)
+        
+        # Create layout
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        
+        # Create web view
+        self.web = AnkiWebView(parent=self)
+        layout.addWidget(self.web)
+        
+        # Set up message handler
+        gui_hooks.webview_did_receive_js_message.append(self.handle_message)
+        
+        # Load first card
+        self.load_current_card()
+    
+    def handle_message(self, handled, message, context):
+        """Handle messages from JavaScript."""
+        # Accept messages from our webview or with None context (some Anki versions)
+        if context is not None and context != self.web:
+            return (handled, None)
+        
+        try:
+            # print(f"[KanjiPracticeWindow] Received message: {message}")
+            
+            if message.startswith("charRecognized:"):
+                char = message.split(":", 1)[1]
+                print(f"[KanjiPracticeWindow] Character recognized: {char}")
+                return (True, None)
+            
+            elif message.startswith("recognizeDrawing:"):
+                # Format: recognizeDrawing:<base64_image_data>
+                image_data = message.split(":", 1)[1]
+                print(f"[KanjiPracticeWindow] Recognizing drawing...")
+                
+                text, confidence, all_results = recognize_handwriting(image_data)
+                
+                if text:
+                    # Send results back to JavaScript
+                    result_data = {
+                        'text': text,
+                        'confidence': confidence,
+                        'alternatives': [{'text': t, 'conf': c} for t, c in all_results[:5]]
+                    }
+                    result_json = json.dumps(result_data, ensure_ascii=False)
+                    self.web.eval(f"window.handleOCRResult({result_json});")
+                else:
+                    self.web.eval("window.handleOCRResult(null);")
+                
+                return (True, None)
+            
+            elif message.startswith("lookupKanji:"):
+                char = message.split(":", 1)[1]
+                print(f"[KanjiPracticeWindow] Looking up kanji: {char}")
+                self.inject_kanji_strokes(char)
+                return (True, None)
+            
+            elif message == "nextCard":
+                self.next_card()
+                return (True, None)
+            
+            elif message == "prevCard":
+                self.prev_card()
+                return (True, None)
+            
+            elif message == "closePractice":
+                self.close()
+                return (True, None)
+            
+            elif message.startswith('saveCache:'):
+                try:
+                    cache_data = json.loads(message.split(':', 1)[1])
+                    card_idx = cache_data.get('cardIndex')
+                    if card_idx is not None:
+                        self.card_cache[card_idx] = {
+                            'answer': cache_data.get('answer', ''),
+                            'feedback': cache_data.get('feedback', ''),
+                            'feedbackClass': cache_data.get('feedbackClass', '')
+                        }
+                        debugPrint(f"Cached data for card {card_idx}")
+                        
+                        # Track answered and correct cards
+                        if cache_data.get('feedback'):
+                            self.answered_cards.add(card_idx)
+                            if cache_data.get('feedbackClass') == 'result correct':
+                                self.correct_cards.add(card_idx)
+                            
+                            # Check if all cards are answered
+                            if len(self.answered_cards) == len(self.card_data_list):
+                                self.show_completion_screen()
+                except Exception as e:
+                    debugPrint(f"Error saving cache: {e}")
+                return (True, None)
+            
+            elif message.startswith("getFeedback:"):
+                # Format: getFeedback:{"english":"...","accepted":"...","submitted":"..."}
+                try:
+                    feedback_data = json.loads(message.split(":", 1)[1])
+                    english = feedback_data.get('english', '')
+                    accepted = feedback_data.get('accepted', '')
+                    submitted = feedback_data.get('submitted', '')
+                    
+                    print(f"[KanjiPracticeWindow] Getting feedback for: '{submitted}' vs '{accepted}'")
+                    
+                    # Get AI feedback
+                    feedback = self.get_ai_feedback(english, accepted, submitted)
+                    
+                    if feedback:
+                        # Send feedback back to JavaScript
+                        feedback_json = json.dumps(feedback, ensure_ascii=False)
+                        self.web.eval(f"window.handleFeedback({feedback_json});")
+                    else:
+                        self.web.eval("window.handleFeedback(null);")
+                    
+                    return (True, None)
+                except Exception as e:
+                    print(f"[KanjiPracticeWindow] Error processing feedback request: {e}")
+                    self.web.eval("window.handleFeedback(null);")
+                    return (True, None)
+                
+        except Exception as e:
+            print(f"[KanjiPracticeWindow] Error handling message: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Show error in UI
+            error_js = f"""
+            var status = document.getElementById('status');
+            if (status) {{
+                status.textContent = '❌ Error: {str(e).replace("'", "\\'")}';
+                status.style.backgroundColor = '#f44336';
+                status.style.color = 'white';
+                status.style.display = 'block';
+            }}
+            """
+            try:
+                self.web.eval(error_js)
+            except:
+                pass
+        
+        return (handled, None)
+    
+    def get_ai_feedback(self, english, accepted, submitted):
+        """Get AI feedback on the submitted answer."""
+        try:
+            # Load AI config
+            ai_config = load_ai_config()
+            api_key = ai_config.get('api_key', '')
+            api_url = ai_config.get('api_url') or 'https://openrouter.ai/api/v1/chat/completions'
+            model = ai_config.get('model') or 'google/gemini-2.5-flash'
+            
+            if not api_key:
+                debugPrint("AI feedback not available - API key not configured")
+                return None
+            
+            # Build prompt
+            prompt = f"""English: {english}
+Japanese translation: {accepted}
+Attempted Japanese translation: {submitted}
+
+If the attempted translation is correct AND matches the given Japanese sentence, immediately return ✅ Correct
+
+If the attempted translation is incorrect, focus on conceptually why the translation is not correct in a markdown format and include the GIVEN Japanese translation as part of the feedback.
+
+When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (kanji followed by reading in square brackets)."""
+            
+            # Prepare API request
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            }
+            
+            debugPrint(f"Requesting AI feedback for: '{submitted}' vs '{accepted}'")
+            
+            # Make API request
+            request = urllib.request.Request(
+                api_url,
+                data=json.dumps(payload).encode('utf-8'),
+                headers=headers
+            )
+            
+            with urllib.request.urlopen(request, timeout=30) as response:
+                result = json.loads(response.read().decode('utf-8'))
+            
+            # Extract feedback
+            if result.get('choices') and len(result['choices']) > 0:
+                feedback = result['choices'][0]['message']['content'].strip()
+                debugPrint(f"AI feedback: {feedback[:100]}...")
+                return feedback
+            
+            return None
+            
+        except Exception as e:
+            debugPrint(f"Error getting AI feedback: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def load_current_card(self):
+        """Load the current card into the web view."""
+        current_card = self.card_data_list[self.current_index]
+        fields = current_card['fields']
+        
+        # Get English sentence
+        english = fields.get('Sentence-English', fields.get('English', ''))
+        if not english:
+            for key in fields:
+                if 'english' in key.lower():
+                    english = fields[key]
+                    break
+        
+        if not english:
+            english = "(No English sentence found in card)"
+        
+        # Build HTML for practice interface
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+                    padding: 20px;
+                    max-width: 900px;
+                    margin: 0 auto;
+                }}
+                .progress {{
+                    padding: 10px;
+                    background-color: #2196F3;
+                    color: white;
+                    font-weight: bold;
+                    border-radius: 5px;
+                    margin-bottom: 15px;
+                }}
+                .english {{
+                    padding: 15px;
+                    font-size: 16px;
+                    background-color: #e8e8e8;
+                    border-radius: 5px;
+                    margin: 10px 0;
+                    color: #000;
+                }}
+                .input-group {{
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin: 10px 0 25px 0;
+                }}
+                input[type="text"] {{
+                    width: 100%;
+                    font-size: 14px;
+                    padding: 6px 10px;
+                    border: 1px solid #ccc;
+                    border-radius: 3px;
+                    font-family: 'Yu Gothic', 'MS Gothic', sans-serif;
+                    line-height: 1.4;
+                    height: auto;
+                    box-sizing: border-box;
+                }}
+                .dict-group {{
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin: 10px 0;
+                }}
+                .dict-search {{
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                    margin-bottom: 10px;
+                }}
+                .dict-search input {{
+                    flex: 1;
+                    font-family: 'Yu Gothic', 'MS Gothic', sans-serif;
+                    font-size: 14px;
+                    padding: 6px 10px;
+                }}
+                .status {{
+                    padding: 8px;
+                    font-weight: bold;
+                    border-radius: 3px;
+                    margin: 10px 0;
+                    display: none;
+                }}
+                .canvas-group {{
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin: 10px 0;
+                    text-align: center;
+                }}
+                .canvas-info {{
+                    color: #666;
+                    font-style: italic;
+                    padding: 5px;
+                    margin-bottom: 10px;
+                }}
+                .controls {{
+                    display: flex;
+                    gap: 10px;
+                    justify-content: center;
+                    margin: 10px 0;
+                }}
+                .btn-primary {{
+                    background-color: #4CAF50;
+                    color: white;
+                    padding: 8px 16px;
+                    border: none;
+                    border-radius: 3px;
+                    cursor: pointer;
+                    font-weight: bold;
+                }}
+                .btn-primary:hover {{
+                    background-color: #45a049;
+                }}
+                .result {{
+                    padding: 15px;
+                    font-size: 14px;
+                    border-radius: 5px;
+                    margin: 10px 0;
+                    display: none;
+                    line-height: 1.6;
+                }}
+                .result.correct {{
+                    background-color: #4CAF50;
+                    color: white;
+                    border: 2px solid #45a049;
+                }}
+                .result.incorrect {{
+                    background-color: #2196F3;
+                    color: white;
+                    border: 2px solid #1976D2;
+                }}
+                .result h1, .result h2, .result h3 {{
+                    margin-top: 0.5em;
+                    margin-bottom: 0.5em;
+                }}
+                .result ul, .result ol {{
+                    margin-left: 20px;
+                }}
+                .result code {{
+                    background-color: rgba(0,0,0,0.05);
+                    padding: 2px 4px;
+                    border-radius: 3px;
+                    font-family: 'Courier New', monospace;
+                }}
+                .result strong {{
+                    color: #00f5d5;
+                }}
+                .nav-controls {{
+                    display: flex;
+                    gap: 10px;
+                    justify-content: center;
+                    margin-top: 20px;
+                    padding-top: 15px;
+                    border-top: 1px solid #ddd;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="progress">Card {self.current_index + 1} of {len(self.card_data_list)}</div>
+            <div class="english">{english}</div>
+            
+            <div class="input-group">
+                <label><b>Your Answer</b></label>
+                <input type="text" id="japanese-input" placeholder="Type or draw Japanese characters...">
+            </div>
+            
+            <div class="dict-group">
+                <label><b>Dictionary Lookup</b></label>
+                <div class="dict-search">
+                    <span>Search kanji:</span>
+                    <input type="text" id="dict-search" placeholder="Enter word/kanji to practice...">
+                    <button onclick="lookupDictionary()">Look Up</button>
+                </div>
+            </div>
+            
+            <div class="status" id="status"></div>
+            
+            <div class="canvas-group">
+                <div class="canvas-info" id="canvas-info">Free drawing mode - draw any character</div>
+                <div id="canvas-container"></div>
+                <div class="controls">
+                    <button onclick="window.undoStroke()" id="undo-btn" disabled>← Undo</button>
+                    <button onclick="window.redoStroke()" id="redo-btn" disabled>→ Redo</button>
+                    <button onclick="window.submitDrawing()">Submit Drawing</button>
+                    <button onclick="window.clearCanvas()">Clear Canvas</button>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button class="btn-primary" onclick="submitAnswer()">Submit Answer</button>
+                <button onclick="skipCard()">Skip</button>
+            </div>
+            
+            <div class="result" id="result"></div>
+            
+            <div class="nav-controls">
+                <button onclick="pycmd('prevCard')" {"disabled" if self.current_index == 0 else ""}>Previous Card</button>
+                <button onclick="pycmd('nextCard')" {"disabled" if self.current_index >= len(self.card_data_list) - 1 and len(self.answered_cards) < len(self.card_data_list) else ""}>Next Card</button>
+                <button onclick="pycmd('closePractice')">Close Practice</button>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Get accepted Japanese translation
+        japanese = fields.get('Expression', fields.get('Sentence-Japanese', fields.get('Japanese', '')))
+        if not japanese:
+            for key in fields:
+                if 'japanese' in key.lower() or 'expression' in key.lower():
+                    japanese = fields[key]
+                    break
+        if not japanese:
+            japanese = ''
+        
+        # Trim whitespace from accepted answer
+        japanese = japanese.strip()
+        
+        # Add JavaScript for drawing and interaction
+        js_code = self.get_practice_js()
+        
+        # Get cached data for this card from Python
+        cached = self.card_cache.get(self.current_index, {})
+        
+        # Inject card data into JavaScript
+        card_data_js = f"""
+        <script>
+        window.cardEnglish = {json.dumps(english)};
+        window.cardJapanese = {json.dumps(japanese)};
+        window.currentCardIndex = {self.current_index};
+        
+        // Restore cached answer and feedback for this card from Python cache
+        setTimeout(function() {{
+            var cache = {json.dumps(cached)};
+            if (cache && Object.keys(cache).length > 0) {{
+                var input = document.getElementById('japanese-input');
+                var result = document.getElementById('result');
+                if (input && cache.answer !== undefined && cache.answer !== '') {{
+                    input.value = cache.answer;
+                }}
+                if (result && cache.feedback !== undefined && cache.feedback !== '') {{
+                    result.innerHTML = cache.feedback;
+                    result.className = cache.feedbackClass || 'result';
+                    result.style.display = 'block';
+                }}
+            }}
+        }}, 100);
+        </script>
+        """
+        
+        full_html = html + card_data_js + "<script>" + js_code + "</script>"
+        
+        self.web.stdHtml(full_html, css=[], js=[])
+    
+    def next_card(self):
+        """Move to next card or show completion screen."""
+        if self.on_completion_screen:
+            # Already on completion, do nothing or could cycle back to first card
+            return
+        
+        if self.current_index < len(self.card_data_list) - 1:
+            self.current_index += 1
+            self.load_current_card()
+        elif len(self.answered_cards) == len(self.card_data_list):
+            # At last card and all answered - show completion
+            self.show_completion_screen()
+    
+    def prev_card(self):
+        """Move to previous card."""
+        if self.on_completion_screen:
+            # Go back to last card from completion screen
+            self.on_completion_screen = False
+            self.current_index = len(self.card_data_list) - 1
+            self.load_current_card()
+        elif self.current_index > 0:
+            self.current_index -= 1
+            self.load_current_card()
+    
+    def get_practice_js(self):
+        """Get JavaScript code for practice interface."""
+        return """
+        // Initialize undo/redo functionality
+        window.undoHistory = [];
+        window.updateUndoRedoButtons = function() {
+            var undoBtn = document.getElementById('undo-btn');
+            var redoBtn = document.getElementById('redo-btn');
+            if (undoBtn) undoBtn.disabled = !window.currentStrokes || window.currentStrokes.length === 0;
+            if (redoBtn) redoBtn.disabled = !window.undoHistory || window.undoHistory.length === 0;
+        };
+        
+        window.undoStroke = function() {
+            if (!window.currentStrokes || window.currentStrokes.length === 0) return;
+            
+            // Remove last stroke and add to redo history
+            var lastStroke = window.currentStrokes.pop();
+            window.undoHistory.push(lastStroke);
+            
+            // Update stroke index if in dictionary mode
+            if (window.dictionaryMode && window.currentStrokeIndex > 0) {
+                window.currentStrokeIndex--;
+            }
+            
+            window.updateUndoRedoButtons();
+            if (window.redrawCanvas) window.redrawCanvas();
+        };
+        
+        window.redoStroke = function() {
+            if (window.undoHistory.length === 0) return;
+            
+            // Restore last undone stroke
+            var stroke = window.undoHistory.pop();
+            window.currentStrokes.push(stroke);
+            
+            // Update stroke index if in dictionary mode
+            if (window.dictionaryMode && window.currentStrokeIndex < window.ghostStrokes.length) {
+                window.currentStrokeIndex++;
+            }
+            
+            window.updateUndoRedoButtons();
+            if (window.redrawCanvas) window.redrawCanvas();
+        };
+        
+        // Initialize canvas on page load
+        (function() {
+            function initCanvas() {
+                var container = document.getElementById('canvas-container');
+                if (!container) {
+                    console.error('Canvas container not found');
+                    return;
+                }
+                
+                // Create canvas
+                var canvas = document.createElement('canvas');
+                canvas.id = 'drawing-canvas';
+                canvas.width = 300;
+                canvas.height = 300;
+                canvas.style.border = '2px solid #333';
+                canvas.style.cursor = 'crosshair';
+                canvas.style.touchAction = 'none';
+                container.appendChild(canvas);
+                
+                window.ctx = canvas.getContext('2d');
+                window.isDrawing = false;
+                window.currentStrokes = [];
+                window.currentStroke = null;
+                window.currentStrokeIndex = 0;
+                window.ghostStrokes = [];
+                window.dictionaryMode = false;
+                window.animationStartTime = null;
+                
+                // Set up event listeners for drawing
+                canvas.addEventListener('pointerdown', window.startDrawing);
+                canvas.addEventListener('pointermove', window.draw);
+                canvas.addEventListener('pointerup', window.endDrawing);
+                canvas.addEventListener('pointercancel', window.endDrawing);
+                
+                // Draw initial grid
+                window.drawGrid();
+                
+                // Initialize undo/redo button states
+                window.updateUndoRedoButtons();
+                
+                console.log('Canvas initialized');
+            }
+            
+            // Drawing helper functions
+            function getPos(evt) {
+                var canvas = document.getElementById('drawing-canvas');
+                if (!canvas) return {x: 0, y: 0};
+                var rect = canvas.getBoundingClientRect();
+                var cx, cy;
+                if (evt.touches && evt.touches.length > 0) {
+                    cx = evt.touches[0].clientX;
+                    cy = evt.touches[0].clientY;
+                } else {
+                    cx = evt.clientX;
+                    cy = evt.clientY;
+                }
+                return { x: cx - rect.left, y: cy - rect.top };
+            }
+            
+            // Offscreen canvas for stroke validation
+            var offscreenCanvas = document.createElement('canvas');
+            offscreenCanvas.width = 109;
+            offscreenCanvas.height = 109;
+            var offctx = offscreenCanvas.getContext('2d');
+            
+            window.isStrokeCloseEnough = function(svgPoints, canonicalPath) {
+                if (!canonicalPath || !svgPoints || svgPoints.length < 5) {
+                    return false;
+                }
+                
+                var W = 109, H = 109;
+                var HIT_RATIO = 0.6;
+                var CORRIDOR_WIDTH = 10;
+                
+                // Render canonical stroke
+                offctx.clearRect(0, 0, W, H);
+                offctx.save();
+                offctx.lineWidth = CORRIDOR_WIDTH;
+                offctx.lineCap = 'round';
+                offctx.strokeStyle = '#ffffff';
+                offctx.setLineDash([]);
+                offctx.stroke(canonicalPath);
+                offctx.restore();
+                
+                var img = offctx.getImageData(0, 0, W, H);
+                var data = img.data;
+                
+                // Get canonical bounding box
+                var minCX = W, maxCX = -1, minCY = H, maxCY = -1;
+                for (var y = 0; y < H; y++) {
+                    for (var x = 0; x < W; x++) {
+                        var idx = (y * W + x) * 4;
+                        if (data[idx + 3] > 0) {
+                            if (x < minCX) minCX = x;
+                            if (x > maxCX) maxCX = x;
+                            if (y < minCY) minCY = y;
+                            if (y > maxCY) maxCY = y;
+                        }
+                    }
+                }
+                if (maxCX < minCX || maxCY < minCY) return false;
+                
+                var canonW = maxCX - minCX + 1;
+                var canonH = maxCY - minCY + 1;
+                var canonDiag = Math.hypot(canonW, canonH);
+                
+                // Get user stroke metrics
+                var userLen = 0;
+                var minUX = Infinity, maxUX = -Infinity, minUY = Infinity, maxUY = -Infinity;
+                for (var i = 0; i < svgPoints.length; i++) {
+                    var p = svgPoints[i];
+                    if (i > 0) {
+                        var prev = svgPoints[i - 1];
+                        userLen += Math.hypot(p.x - prev.x, p.y - prev.y);
+                    }
+                    if (p.x < minUX) minUX = p.x;
+                    if (p.x > maxUX) maxUX = p.x;
+                    if (p.y < minUY) minUY = p.y;
+                    if (p.y > maxUY) maxUY = p.y;
+                }
+                if (!isFinite(minUX) || !isFinite(minUY)) return false;
+                
+                var userW = maxUX - minUX;
+                var userH = maxUY - minUY;
+                
+                // Check corridor hit ratio
+                var hits = 0, total = 0;
+                var step = Math.max(1, Math.floor(svgPoints.length / 40));
+                for (var i = 0; i < svgPoints.length; i += step) {
+                    var p = svgPoints[i];
+                    var x = Math.round(p.x);
+                    var y = Math.round(p.y);
+                    if (x < 0 || x >= W || y < 0 || y >= H) continue;
+                    total++;
+                    var idx = (y * W + x) * 4;
+                    if (data[idx + 3] > 0) hits++;
+                }
+                if (total === 0) return false;
+                var ratio = hits / total;
+                
+                // Size-dependent thresholds
+                var SMALL_DIAG = 20, LARGE_DIAG = 80;
+                var t = canonDiag <= SMALL_DIAG ? 0 : (canonDiag >= LARGE_DIAG ? 1 : (canonDiag - SMALL_DIAG) / (LARGE_DIAG - SMALL_DIAG));
+                var MIN_LENGTH_FRAC = 0.50 + t * (0.85 - 0.50);
+                var MIN_MAIN_FRAC = 0.50 + t * (0.80 - 0.50);
+                var MIN_ABS_LENGTH = 5 + t * (10 - 5);
+                
+                var hasEnoughLength = userLen >= MIN_ABS_LENGTH && (canonDiag <= 0 || userLen / canonDiag >= MIN_LENGTH_FRAC);
+                var canonMain = canonW >= canonH ? canonW : canonH;
+                var userMain = canonW >= canonH ? userW : userH;
+                var mainFrac = canonMain > 0 ? userMain / canonMain : 1;
+                var hasEnoughExtent = mainFrac >= MIN_MAIN_FRAC;
+                
+                return hasEnoughLength && hasEnoughExtent && ratio >= HIT_RATIO;
+            };
+            
+            window.isDirectionCorrect = function(svgPoints, strokeMeta) {
+                if (!strokeMeta || !svgPoints || svgPoints.length < 2) return true;
+                var sx = strokeMeta.start_x, sy = strokeMeta.start_y;
+                var ex = strokeMeta.end_x, ey = strokeMeta.end_y;
+                if (sx == null || sy == null || ex == null || ey == null) return true;
+                
+                var first = svgPoints[0];
+                var last = svgPoints[svgPoints.length - 1];
+                var ux = last.x - first.x, uy = last.y - first.y;
+                var ulen = Math.hypot(ux, uy);
+                if (ulen < 5) return true;
+                
+                var cx = ex - sx, cy = ey - sy;
+                var clen = Math.hypot(cx, cy);
+                if (clen < 1) return true;
+                
+                var dot = (ux * cx + uy * cy) / (ulen * clen);
+                return dot >= 0.3;
+            };
+            
+            window.drawGrid = function() {
+                if (!window.ctx) return;
+                var ctx = window.ctx;
+                
+                ctx.save();
+                ctx.scale(300 / 109, 300 / 109);
+                
+                var W = 109, H = 109;
+                
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([]);
+                ctx.strokeRect(0, 0, W, H);
+                
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+                ctx.setLineDash([3, 4]);
+                
+                ctx.beginPath();
+                ctx.moveTo(W / 2, 0);
+                ctx.lineTo(W / 2, H);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(0, H / 2);
+                ctx.lineTo(W, H / 2);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+            
+            window.redrawCanvas = function() {
+                if (!window.ctx) return;
+                var ctx = window.ctx;
+                
+                ctx.clearRect(0, 0, 300, 300);
+                window.drawGrid();
+                
+                // Draw ghost strokes if in dictionary mode
+                if (window.dictionaryMode && window.ghostStrokes && window.ghostStrokes.length > 0) {
+                    window.drawGhostStrokes();
+                }
+                
+                // Draw user strokes
+                ctx.save();
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.setLineDash([]);
+                
+                for (var i = 0; i < window.currentStrokes.length; i++) {
+                    var stroke = window.currentStrokes[i];
+                    if (!stroke || stroke.length < 2) continue;
+                    ctx.beginPath();
+                    ctx.moveTo(stroke[0].x, stroke[0].y);
+                    for (var j = 1; j < stroke.length; j++) {
+                        ctx.lineTo(stroke[j].x, stroke[j].y);
+                    }
+                    ctx.stroke();
+                }
+                
+                // Draw current stroke being drawn
+                if (window.currentStroke && window.currentStroke.length > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(window.currentStroke[0].x, window.currentStroke[0].y);
+                    for (var j = 1; j < window.currentStroke.length; j++) {
+                        ctx.lineTo(window.currentStroke[j].x, window.currentStroke[j].y);
+                    }
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+            
+            window.drawGhostStrokes = function() {
+                // Draw ghost strokes for dictionary mode
+                if (!window.ghostStrokes || window.ghostStrokes.length === 0) return;
+                
+                var ctx = window.ctx;
+                
+                ctx.save();
+                ctx.scale(300 / 109, 300 / 109);
+                
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.setLineDash([]);
+                
+                // Draw all ghost strokes
+                for (var i = 0; i < window.ghostStrokes.length; i++) {
+                    var s = window.ghostStrokes[i];
+                    
+                    // Current stroke is less transparent
+                    if (i === window.currentStrokeIndex) {
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+                    } else {
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+                    }
+                    
+                    ctx.stroke(s.path);
+                    
+                    // Draw stroke numbers
+                    if (s.label_x != null) {
+                        if (i === window.currentStrokeIndex) {
+                            ctx.fillStyle = 'rgba(255, 0, 0, 0.75)';
+                        } else {
+                            ctx.fillStyle = 'rgba(255, 0, 0, 0.20)';
+                        }
+                        ctx.font = '8px sans-serif';
+                        ctx.fillText(String(s.index), s.label_x, s.label_y);
+                    }
+                }
+                
+                ctx.restore();
+            };
+            
+            window.startDrawing = function(evt) {
+                evt.preventDefault();
+                var pos = getPos(evt);
+                window.isDrawing = true;
+                window.currentStroke = [{ x: pos.x, y: pos.y }];
+            };
+            
+            window.draw = function(evt) {
+                if (!window.isDrawing) return;
+                evt.preventDefault();
+                var pos = getPos(evt);
+                if (window.currentStroke) {
+                    window.currentStroke.push({ x: pos.x, y: pos.y });
+                    window.redrawCanvas();
+                }
+            };
+            
+            window.endDrawing = function(evt) {
+                if (!window.isDrawing) return;
+                evt.preventDefault();
+                window.isDrawing = false;
+                
+                if (!window.currentStroke || window.currentStroke.length < 2) {
+                    window.currentStroke = null;
+                    return;
+                }
+                
+                // Clear redo history when a new stroke is added
+                window.undoHistory = [];
+                
+                // In dictionary mode, validate stroke against ghost strokes
+                if (window.dictionaryMode && window.ghostStrokes && window.ghostStrokes.length > 0) {
+                    // Convert current stroke to SVG coordinates
+                    var svgStroke = window.currentStroke.map(function(p) {
+                        return { x: p.x / (300 / 109), y: p.y / (300 / 109) };
+                    });
+                    
+                    // Check if stroke matches current expected stroke using proper validation
+                    var expectedStroke = window.ghostStrokes[window.currentStrokeIndex];
+                    if (expectedStroke) {
+                        var okShape = window.isStrokeCloseEnough(svgStroke, expectedStroke.path);
+                        var okDirection = window.isDirectionCorrect(svgStroke, expectedStroke);
+                        
+                        console.log('[Dictionary] Validating stroke', window.currentStrokeIndex, 'shape:', okShape, 'direction:', okDirection);
+                        
+                        if (okShape && okDirection) {
+                            // Valid stroke - keep it and move to next
+                            window.currentStrokes.push(window.currentStroke);
+                            window.currentStrokeIndex++;
+                            window.updateUndoRedoButtons();
+                            
+                            // Check if current character is complete
+                            if (window.currentStrokeIndex >= window.ghostStrokes.length) {
+                                console.log('[Dictionary] Character complete:', window.currentKanjiChar);
+                                
+                                // Add completed character to answer box
+                                var answerBox = document.getElementById('japanese-input');
+                                if (answerBox) {
+                                    answerBox.value += window.currentKanjiChar;
+                                }
+                                
+                                // Move to next character if available
+                                if (window.kanjiCharList && window.currentKanjiCharIndex < window.kanjiCharList.length - 1) {
+                                    window.currentKanjiCharIndex++;
+                                    var nextChar = window.kanjiCharList[window.currentKanjiCharIndex];
+                                    console.log('[Dictionary] Loading next character:', nextChar);
+                                    
+                                    // Clear user strokes and undo history before loading next character
+                                    window.currentStrokes = [];
+                                    window.undoHistory = [];
+                                    window.updateUndoRedoButtons();
+                                    
+                                    pycmd('lookupKanji:' + nextChar);
+                                } else {
+                                    // All characters complete - return to free-draw mode
+                                    console.log('[Dictionary] All characters complete - returning to free-draw mode');
+                                    
+                                    // Clear ghost strokes and reset dictionary mode
+                                    window.ghostStrokes = [];
+                                    window.dictionaryMode = false;
+                                    window.currentKanjiChar = '';
+                                    window.kanjiCharList = [];
+                                    window.currentKanjiCharIndex = 0;
+                                    
+                                    // Clear user strokes and undo history
+                                    window.currentStrokes = [];
+                                    window.undoHistory = [];
+                                    window.updateUndoRedoButtons();
+                                    
+                                    // Update info display
+                                    var info = document.getElementById('canvas-info');
+                                    if (info) {
+                                        info.textContent = 'All characters completed! Free drawing mode resumed.';
+                                        info.style.color = '#4CAF50';
+                                        
+                                        // Reset to normal message after 3 seconds
+                                        setTimeout(function() {
+                                            info.textContent = 'Free drawing mode - draw any character';
+                                            info.style.color = '';
+                                        }, 3000);
+                                    }
+                                    
+                                    // Clear the canvas and redraw grid
+                                    window.redrawCanvas();
+                                }
+                            } else {
+                                // Update progress for current character
+                                var info = document.getElementById('canvas-info');
+                                if (info) {
+                                    info.textContent = 'Dictionary Mode: Drawing ' + window.currentKanjiChar + 
+                                                      ' (stroke ' + (window.currentStrokeIndex + 1) + 
+                                                      ' of ' + window.ghostStrokes.length + ')';
+                                }
+                            }
+                        } else {
+                            // Invalid stroke - don't keep it
+                            console.log('[Dictionary] Stroke validation failed');
+                        }
+                    }
+                    
+                    window.currentStroke = null;
+                    window.redrawCanvas();
+                } else {
+                    // Normal mode - just add stroke
+                    window.currentStrokes.push(window.currentStroke);
+                    window.updateUndoRedoButtons();
+                    window.currentStroke = null;
+                    window.redrawCanvas();
+                }
+            };
+            
+            var startDrawing = window.startDrawing;
+            var draw = window.draw;
+            var endDrawing = window.endDrawing;
+            
+            // Initialize when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initCanvas);
+            } else {
+                initCanvas();
+            }
+        })();
+        
+        window.submitAnswer = function() {
+            var input = document.getElementById('japanese-input');
+            var result = document.getElementById('result');
+            var submittedAnswer = input.value.trim();
+            var acceptedAnswer = (window.cardJapanese || '').trim();
+            
+            // Cache the answer
+            pycmd('saveCache:' + JSON.stringify({
+                cardIndex: window.currentCardIndex,
+                answer: input.value,
+                feedback: '',
+                feedbackClass: ''
+            }));
+            
+            if (!submittedAnswer) {
+                result.innerHTML = '⚠️ Please enter an answer first.';
+                result.className = 'result incorrect';
+                result.style.display = 'block';
+                return;
+            }
+            
+            // Show loading state
+            result.innerHTML = '🔍 Checking your answer...';
+            result.className = 'result';
+            result.style.display = 'block';
+            
+            // Check for exact match
+            if (submittedAnswer === acceptedAnswer) {
+                result.innerHTML = '<h2>✅ Correct</h2>';
+                result.className = 'result correct';
+                
+                // Cache the feedback via pycmd
+                pycmd('saveCache:' + JSON.stringify({
+                    cardIndex: window.currentCardIndex,
+                    answer: document.getElementById('japanese-input').value,
+                    feedback: result.innerHTML,
+                    feedbackClass: 'result correct'
+                }));
+                
+                return;
+            }
+            
+            // Request AI feedback for incorrect answer
+            var feedbackRequest = {
+                english: window.cardEnglish || '',
+                accepted: acceptedAnswer,
+                submitted: submittedAnswer
+            };
+            
+            pycmd('getFeedback:' + JSON.stringify(feedbackRequest));
+        };
+        
+        // Handler for AI feedback response
+        window.handleFeedback = function(feedback) {
+            var result = document.getElementById('result');
+            if (!feedback) {
+                result.innerHTML = '❌ Error getting feedback. Please try again.';
+                result.className = 'result incorrect';
+                return;
+            }
+            
+            // Render markdown feedback
+            result.innerHTML = window.renderMarkdown(feedback);
+            
+            // Check if feedback indicates correct answer
+            if (feedback.includes('✅ Correct') || feedback.includes('✅Correct')) {
+                result.className = 'result correct';
+            } else {
+                result.className = 'result incorrect';
+            }
+            
+            result.style.display = 'block';
+            
+            // Cache the feedback via pycmd
+            var input = document.getElementById('japanese-input');
+            pycmd('saveCache:' + JSON.stringify({
+                cardIndex: window.currentCardIndex,
+                answer: input ? input.value : '',
+                feedback: result.innerHTML,
+                feedbackClass: result.className
+            }));
+        };
+        
+        // Simple markdown renderer with furigana support
+        window.renderMarkdown = function(text) {
+            if (!text) return '';
+            
+            var html = text;
+            
+            // Handle furigana format: 漢字[かんじ] -> <ruby>漢字<rt>かんじ</rt></ruby>
+            html = html.replace(/([一-龯ぁ-ゔァ-ヴー々〆〤]+)\\[([ぁ-んァ-ヴー]+)\\]/g, '<ruby>$1<rt>$2</rt></ruby>');
+            
+            // Handle code blocks first
+            html = html.replace(/```([\\s\\S]*?)```/g, '<pre><code>$1</code></pre>');
+            
+            // Headers
+            html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+            html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+            html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+            
+            // Bold
+            html = html.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+            html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+            
+            // Italic  
+            html = html.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');
+            html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+            
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            
+            // Lists - process line by line
+            var lines = html.split('\\n');
+            var inList = false;
+            var result = [];
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i];
+                if (line.match(/^[\\*-] /)) {
+                    if (!inList) {
+                        result.push('<ul>');
+                        inList = true;
+                    }
+                    result.push('<li>' + line.substring(2) + '</li>');
+                } else {
+                    if (inList) {
+                        result.push('</ul>');
+                        inList = false;
+                    }
+                    result.push(line);
+                }
+            }
+            if (inList) result.push('</ul>');
+            html = result.join('\\n');
+            
+            // Line breaks
+            html = html.replace(/\\n\\n/g, '</p><p>');
+            html = '<p>' + html + '</p>';
+            
+            return html;
+        };
+        
+        window.skipCard = function() {
+            pycmd('nextCard');
+        };
+        
+        window.lookupDictionary = function() {
+            console.log('lookupDictionary called');
+            var searchInput = document.getElementById('dict-search');
+            console.log('Search input:', searchInput);
+            var kanji = searchInput ? searchInput.value.trim() : '';
+            console.log('Kanji value:', kanji);
+            
+            // Show status immediately
+            var status = document.getElementById('status');
+            if (status) {
+                status.textContent = 'Looking up: ' + (kanji || '(no input)');
+                status.style.backgroundColor = '#2196F3';
+                status.style.color = 'white';
+                status.style.display = 'block';
+            }
+            
+            if (kanji) {
+                console.log('Calling pycmd with:', 'lookupKanji:' + kanji);
+                pycmd('lookupKanji:' + kanji);
+            } else {
+                console.log('No kanji entered');
+                if (status) {
+                    status.textContent = '⚠ Please enter a character to look up';
+                    status.style.backgroundColor = '#f44336';
+                }
+            }
+        };
+        
+        // Add Enter key support for dictionary lookup
+        var dictSearch = document.getElementById('dict-search');
+        if (dictSearch) {
+            dictSearch.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    window.lookupDictionary();
+                }
+            });
+        };
+        
+        window.undoStroke = function() {
+            if (window.currentStrokes.length === 0) return;
+            
+            // Remove last stroke and add to redo history
+            var lastStroke = window.currentStrokes.pop();
+            window.undoHistory.push(lastStroke);
+            
+            // Update stroke index if in dictionary mode
+            if (window.dictionaryMode && window.currentStrokeIndex > 0) {
+                window.currentStrokeIndex--;
+            }
+            
+            window.updateUndoRedoButtons();
+            window.redrawCanvas();
+        };
+        
+        window.redoStroke = function() {
+            if (window.undoHistory.length === 0) return;
+            
+            // Restore last undone stroke
+            var stroke = window.undoHistory.pop();
+            window.currentStrokes.push(stroke);
+            
+            // Update stroke index if in dictionary mode
+            if (window.dictionaryMode && window.currentStrokeIndex < window.ghostStrokes.length) {
+                window.currentStrokeIndex++;
+            }
+            
+            window.updateUndoRedoButtons();
+            window.redrawCanvas();
+        };
+        
+        // Add keyboard shortcuts for undo/redo
+        document.addEventListener('keydown', function(e) {
+            // Only handle if no input/textarea is focused
+            var activeElement = document.activeElement;
+            if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                return;
+            }
+            
+            // Ctrl+Z for undo (without shift)
+            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                window.undoStroke();
+            }
+            // Ctrl+Y or Ctrl+Shift+Z for redo
+            else if (e.ctrlKey && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                window.redoStroke();
+            }
+        });
+        
+        window.submitDrawing = function() {
+            // In free draw mode, try to recognize character using OpenRouter API
+            if (!window.currentStrokes || window.currentStrokes.length === 0) {
+                var status = document.getElementById('status');
+                if (status) {
+                    status.textContent = '⚠ Draw something first before submitting';
+                    status.style.backgroundColor = '#f44336';
+                    status.style.color = 'white';
+                    status.style.display = 'block';
+                }
+                return;
+            }
+            
+            var status = document.getElementById('status');
+            if (status) {
+                status.textContent = '🔍 Recognizing... (using AI)';
+                status.style.backgroundColor = '#2196F3';
+                status.style.color = 'white';
+                status.style.display = 'block';
+            }
+            
+            // Get canvas image data
+            var canvas = document.getElementById('drawing-canvas');
+            if (!canvas) {
+                console.error('[OCR] Canvas not found');
+                if (status) {
+                    status.textContent = '❌ Error: Canvas not found';
+                    status.style.backgroundColor = '#f44336';
+                }
+                return;
+            }
+            
+            try {
+                // Create a clean image for OCR: white background with black strokes
+                var tempCanvas = document.createElement('canvas');
+                tempCanvas.width = canvas.width;
+                tempCanvas.height = canvas.height;
+                var tempCtx = tempCanvas.getContext('2d');
+                
+                // Fill with white background
+                tempCtx.fillStyle = '#FFFFFF';
+                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                
+                // Draw user strokes in black
+                tempCtx.strokeStyle = '#000000';
+                tempCtx.lineWidth = 3;
+                tempCtx.lineCap = 'round';
+                tempCtx.lineJoin = 'round';
+                
+                for (var i = 0; i < window.currentStrokes.length; i++) {
+                    var stroke = window.currentStrokes[i];
+                    if (!stroke || stroke.length < 2) continue;
+                    tempCtx.beginPath();
+                    tempCtx.moveTo(stroke[0].x, stroke[0].y);
+                    for (var j = 1; j < stroke.length; j++) {
+                        tempCtx.lineTo(stroke[j].x, stroke[j].y);
+                    }
+                    tempCtx.stroke();
+                }
+                
+                // Convert to base64 image
+                var imageData = tempCanvas.toDataURL('image/png');
+                
+                // Send to Python backend for OCR processing
+                console.log('[OCR] Sending image to OpenRouter API...');
+                pycmd('recognizeDrawing:' + imageData);
+            } catch (error) {
+                console.error('[OCR] Error capturing canvas:', error);
+                if (status) {
+                    status.textContent = '❌ Error: ' + error.message;
+                    status.style.backgroundColor = '#f44336';
+                }
+            }
+        };
+        
+        // Handler for OCR results from Python
+        window.handleOCRResult = function(result) {
+            var status = document.getElementById('status');
+            var answerBox = document.getElementById('japanese-input');
+            
+            if (!result) {
+                // No character recognized
+                console.log('[OCR] No character recognized');
+                if (status) {
+                    status.textContent = '❌ Could not recognize character. Try drawing more clearly.';
+                    status.style.backgroundColor = '#f44336';
+                    status.style.color = 'white';
+                }
+                return;
+            }
+            
+            var recognized = result.text;
+            var confidence = result.confidence;
+            var alternatives = result.alternatives || [];
+            
+            console.log('[OCR] Recognized:', recognized, 'Confidence:', confidence);
+            
+            // Add to answer box
+            if (answerBox) {
+                answerBox.value += recognized;
+            }
+            
+            // Send recognition event
+            pycmd('charRecognized:' + recognized);
+            
+            // Show success message with alternatives
+            if (status) {
+                var altText = '';
+                if (alternatives.length > 1) {
+                    var altChars = alternatives.slice(1, 6).map(function(a) { return a.text; }).join(', ');
+                    if (altChars) {
+                        altText = ' | Also: ' + altChars;
+                    }
+                }
+                
+                var confPercent = (confidence * 100).toFixed(0);
+                status.textContent = '✓ Recognized: ' + recognized + ' (' + confPercent + '% confident)' + altText;
+                status.style.backgroundColor = '#4CAF50';
+                status.style.color = 'white';
+                status.style.display = 'block';
+            }
+            
+            // Clear canvas after recognition
+            window.currentStrokes = [];
+            window.redrawCanvas();
+        };
+        
+        // Fallback recognition using stroke count (if OCR fails)
+        window.fallbackRecognition = function() {
+            if (!window.currentStrokes || window.currentStrokes.length === 0) {
+                return null;
+            }
+            
+            var strokeCount = window.currentStrokes.length;
+            var candidates = [];
+            
+            if (strokeCount === 1) {
+                candidates = ['一', 'の', 'つ', 'し', 'ー'];
+            } else if (strokeCount === 2) {
+                candidates = ['二', '十', '人', '入', 'リ', 'ニ'];
+            } else if (strokeCount === 3) {
+                candidates = ['三', '山', '川', '女', '大', '子', '小', '口'];
+            } else {
+                candidates = [];
+            }
+            
+            if (candidates.length > 0) {
+                return candidates[0];
+            } else {
+                console.log('[Recognition] No match for', strokeCount, 'strokes');
+                var status = document.getElementById('status');
+                if (status) {
+                    status.textContent = '⚠ No character recognized with ' + strokeCount + ' stroke(s). Use dictionary lookup for accurate results.';
+                    status.style.backgroundColor = '#ff9800';
+                    status.style.color = 'white';
+                    status.style.display = 'block';
+                }
+                return null;
+            }
+        };
+        
+        window.clearCanvas = function() {
+            if (!window.ctx) return;
+            
+            // Clear canvas
+            window.ctx.clearRect(0, 0, 300, 300);
+            
+            // Reset drawing state
+            window.currentStrokes = [];
+            window.currentStroke = null;
+            window.currentStrokeIndex = 0;
+            window.animationStartTime = null;
+            window.undoHistory = [];
+            
+            // Update undo/redo button states
+            window.updateUndoRedoButtons();
+            
+            // Redraw grid
+            if (window.drawGrid) {
+                window.drawGrid();
+            }
+            
+            // Redraw ghost strokes if in dictionary mode
+            if (window.dictionaryMode && window.ghostStrokes && window.ghostStrokes.length > 0) {
+                window.redrawCanvas();
+            }
+            
+            // Hide status message
+            var status = document.getElementById('status');
+            if (status) {
+                status.style.display = 'none';
+            }
+        };
+        """
+    
+    def inject_kanji_strokes(self, char):
+        """Load and display ghost strokes for a kanji character in the practice window."""
+        try:
+            # Handle multi-character strings (e.g., 今日)
+            if len(char) > 1:
+                debugPrint(f"Multiple characters entered: {char}")
+                # Set up the character list and load the first one
+                char_list_js = f"""
+                window.kanjiCharList = {json.dumps(list(char))};
+                window.currentKanjiCharIndex = 0;
+                """
+                self.web.eval(char_list_js)
+                # Process only the first character now
+                char = char[0]
+            else:
+                # Single character - reset the list
+                char_list_js = f"""
+                window.kanjiCharList = {json.dumps([char])};
+                window.currentKanjiCharIndex = 0;
+                """
+                self.web.eval(char_list_js)
+            
+            # Fetch stroke data
+            if KANJI_REGEX.match(char):
+                stroke_data = kanjiRenderer(char)
+            elif HIRAGANA_REGEX.match(char) or KATAKANA_REGEX.match(char):
+                stroke_data = kanaRenderer(char)
+            else:
+                debugPrint(f"Character '{char}' not recognized as kanji or kana")
+                # Show error in UI
+                error_js = """
+                var status = document.getElementById('status');
+                if (status) {
+                    status.textContent = '⚠ Not a valid Japanese character';
+                    status.style.backgroundColor = '#f44336';
+                    status.style.color = 'white';
+                    status.style.display = 'block';
+                }
+                """
+                self.web.eval(error_js)
+                return
+            
+            if not stroke_data:
+                debugPrint(f"No stroke data found for {char}")
+                return
+            
+            # stroke_data is already a list of stroke dictionaries
+            strokes = stroke_data
+            debugPrint(f"Loaded {len(strokes)} strokes for {char}")
+            
+            # Update canvas info
+            js = f"""
+            var info = document.getElementById('canvas-info');
+            if (info) {{
+                info.textContent = 'Dictionary Mode: Drawing {char} (stroke 1 of {len(strokes)})';
+                info.style.color = '#2196F3';
+                info.style.fontWeight = 'bold';
+            }}
+            """
+            self.web.eval(js)
+            
+            # Load stroke data and integrate with existing drawing system
+            js = f"""
+            (function() {{
+                // Ensure canvas is initialized
+                if (!window.ctx) {{
+                    console.error('Canvas not initialized yet');
+                    return;
+                }}
+                
+                console.log('Setting up dictionary mode for {char}');
+                
+                // Load stroke data and create Path2D objects
+                var rawStrokes = {json.dumps(strokes)};
+                window.ghostStrokes = rawStrokes.map(function(s) {{
+                    return {{
+                        index: s.index,
+                        path: new Path2D(s.d),
+                        label_x: s.label_x,
+                        label_y: s.label_y,
+                        start_x: s.start_x,
+                        start_y: s.start_y,
+                        end_x: s.end_x,
+                        end_y: s.end_y
+                    }};
+                }});
+            
+            // Enable dictionary mode
+            window.dictionaryMode = true;
+            window.currentKanjiChar = '{char}';
+            
+            // Reset drawing state for new kanji (clear previous strokes)
+            window.currentStrokes = [];
+            window.currentStroke = null;
+            window.currentStrokeIndex = 0;
+            
+            // Redraw canvas to show new ghost strokes
+            window.redrawCanvas();
+            
+            console.log('Loaded', {len(strokes)}, 'strokes for {char} in dictionary mode');
+            console.log('Ghost strokes:', window.ghostStrokes);
+            }})();
+            """
+            
+            self.web.eval(js)
+            
+            # Show success message with delay to ensure element exists
+            success_js = f"""
+            setTimeout(function() {{
+                var status = document.getElementById('status');
+                if (status) {{
+                    status.textContent = '✓ Loaded {len(strokes)} strokes for {char} - try drawing!';
+                    status.style.backgroundColor = '#4CAF50';
+                    status.style.color = 'white';
+                    status.style.display = 'block';
+                }}
+            }}, 100);
+            """
+            self.web.eval(success_js)
+            
+        except Exception as e:
+            debugPrint(f"Error loading kanji strokes: {e}")
+            import traceback
+            debugPrint(traceback.format_exc())
+    
+    def closeEvent(self, event):
+        """Clean up when window is closed."""
+        try:
+            gui_hooks.webview_did_receive_js_message.remove(self.handle_message)
+        except (ValueError, AttributeError):
+            pass
+        super().closeEvent(event)
+    
+    def show_completion_screen(self):
+        """Show completion screen with results and confetti if perfect score."""
+        self.on_completion_screen = True
+        total = len(self.card_data_list)
+        correct = len(self.correct_cards)
+        all_correct = (correct == total)
+        
+        debugPrint(f"Showing completion screen: {correct}/{total} correct, all_correct={all_correct}")
+        
+        # Get incorrect feedbacks for AI summary
+        incorrect_feedbacks = []
+        for idx in self.answered_cards:
+            if idx not in self.correct_cards:
+                cache = self.card_cache.get(idx, {})
+                feedback = cache.get('feedback', '')
+                if feedback and '✅ Correct' not in feedback:
+                    incorrect_feedbacks.append(feedback)
+        
+        # Generate AI summary if there are incorrect answers (or use cached)
+        summary = ""
+        if incorrect_feedbacks and len(incorrect_feedbacks) > 0:
+            if self.completion_summary is None:
+                self.completion_summary = self.generate_completion_summary(incorrect_feedbacks)
+            summary = self.completion_summary
+        
+        # Build completion HTML
+        confetti_script = confettiJs if all_correct else ""
+        
+        completion_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+                    padding: 40px;
+                    text-align: center;
+                    max-width: 800px;
+                    margin: 0 auto;
+                }}
+                h1 {{
+                    font-size: 48px;
+                    margin-bottom: 20px;
+                    color: {'#4CAF50' if all_correct else '#2196F3'};
+                }}
+                .score {{
+                    font-size: 64px;
+                    font-weight: bold;
+                    margin: 30px 0;
+                    color: {'#4CAF50' if all_correct else '#FF9800'};
+                }}
+                .message {{
+                    font-size: 24px;
+                    margin: 20px 0;
+                    color: #666;
+                }}
+                .summary {{
+                    background-color: #2196F3;
+                    border-left: 4px solid #1976D2;
+                    padding: 20px;
+                    margin: 30px 0;
+                    text-align: left;
+                    border-radius: 4px;
+                    color: #ffffff;
+                }}
+                .summary h2 {{
+                    margin-top: 0;
+                    color: #ffffff;
+                }}
+                .summary strong {{
+                    color: #00f5d5;
+                }}
+                .buttons {{
+                    margin-top: 40px;
+                }}
+                button {{
+                    background-color: #4CAF50;
+                    color: white;
+                    padding: 15px 30px;
+                    font-size: 18px;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    margin: 0 10px;
+                }}
+                button:hover {{
+                    background-color: #45a049;
+                }}
+                ruby {{
+                    font-size: 18px;
+                }}
+                rt {{
+                    font-size: 12px;
+                }}
+            </style>
+        </head>
+        <body>
+            <h1>{'🎉 Perfect Score! 🎉' if all_correct else '📊 Practice Complete'}</h1>
+            <div class="score">{correct}/{total}</div>
+            <div class="message">
+                {'Excellent work! You got all answers correct!' if all_correct else f'You got {correct} out of {total} correct.'}
+            </div>
+            
+            {f'''
+            <div class="summary">
+                <h2>📚 Areas to Focus On</h2>
+                <div id="summary-content">{summary}</div>
+            </div>
+            ''' if summary else ''}
+            
+            <div class="buttons">
+                <button onclick="pycmd('prevCard')">← Back to Cards</button>
+                <button onclick="pycmd('closePractice')">Close</button>
+            </div>
+            
+            <canvas id="confetti-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;"></canvas>
+            
+            <script>
+            {confetti_script if all_correct else ''}
+            </script>
+            
+            {f'''
+            <script>
+            // Trigger confetti animation
+            console.log('Initializing confetti for perfect score');
+            setTimeout(function() {{
+                try {{
+                    const canvas = document.getElementById('confetti-canvas');
+                    console.log('Canvas element:', canvas);
+                    const jsConfetti = new JSConfetti({{canvas: canvas}});
+                    console.log('JSConfetti initialized:', jsConfetti);
+                    
+                    jsConfetti.addConfetti({{
+                        emojis: ['🎉', '✨', '🎊', '🌟'],
+                        emojiSize: 50,
+                        confettiNumber: 100,
+                    }});
+                    
+                    // Add more confetti bursts
+                    setTimeout(function() {{
+                        jsConfetti.addConfetti({{
+                            confettiColors: ['#4CAF50', '#45a049', '#66BB6A', '#81C784'],
+                            confettiNumber: 150,
+                        }});
+                    }}, 300);
+                }} catch(e) {{
+                    console.error('Confetti error:', e);
+                }}
+            }}, 100);
+            </script>
+            ''' if all_correct else ''}
+        </body>
+        </html>
+        """
+        
+        self.web.stdHtml(completion_html, css=[], js=[])
+    
+    def generate_completion_summary(self, incorrect_feedbacks):
+        """Generate AI summary of trends in incorrect answers."""
+        try:
+            # Load AI config
+            ai_config = load_ai_config()
+            api_key = ai_config.get('api_key', '')
+            api_url = ai_config.get('api_url') or 'https://openrouter.ai/api/v1/chat/completions'
+            model = ai_config.get('model') or 'google/gemini-2.5-flash'
+            
+            if not api_key:
+                debugPrint("AI summary not available - API key not configured")
+                return "<p>Review the incorrect answers above to identify areas for improvement.</p>"
+            
+            # Build prompt
+            feedbacks_text = "\n\n---\n\n".join(incorrect_feedbacks)
+            prompt = f"""Based on these feedback messages from incorrect Japanese translation attempts, identify the main trends, common mistakes, and concepts/topics the student should focus on. Be concise but helpful.
+
+When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (kanji followed by reading in square brackets; no space between the kanji and the square brackets).
+
+Feedbacks:
+{feedbacks_text}
+
+Provide a brief summary in markdown format with:
+- Main patterns in the mistakes
+- Key grammar points or vocabulary to review
+- Specific recommendations for improvement"""
+            
+            # Prepare API request
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            }
+            
+            debugPrint(f"Requesting completion summary from AI...")
+            
+            # Make API request
+            request = urllib.request.Request(
+                api_url,
+                data=json.dumps(payload).encode('utf-8'),
+                headers=headers
+            )
+            
+            with urllib.request.urlopen(request, timeout=30) as response:
+                result = json.loads(response.read().decode('utf-8'))
+            
+            # Extract summary
+            if result.get('choices') and len(result['choices']) > 0:
+                summary = result['choices'][0]['message']['content'].strip()
+                debugPrint(f"AI summary generated")
+                
+                # Render markdown to HTML
+                return self.render_markdown_python(summary)
+            
+            return "<p>Review the incorrect answers to identify areas for improvement.</p>"
+            
+        except Exception as e:
+            debugPrint(f"Error generating completion summary: {{e}}")
+            import traceback
+            traceback.print_exc()
+            return "<p>Review the incorrect answers to identify areas for improvement.</p>"
+    
+    def render_markdown_python(self, text):
+        """Simple markdown to HTML renderer in Python."""
+        import re
+        html = text
+        
+        # Furigana
+        html = re.sub(r'([一-龯ぁ-ゔァ-ヴー々〆〤]+)\[([ぁ-んァ-ヴー]+)\]', r'<ruby>\1<rt>\2</rt></ruby>', html)
+        
+        # Headers
+        html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+        html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+        html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+        
+        # Bold
+        html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+        html = re.sub(r'__(.+?)__', r'<strong>\1</strong>', html)
+        
+        # Italic
+        html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
+        html = re.sub(r'_(.+?)_', r'<em>\1</em>', html)
+        
+        # Inline code
+        html = re.sub(r'`([^`]+)`', r'<code>\1</code>', html)
+        
+        # Lists (simple processing)
+        lines = html.split('\n')
+        result = []
+        in_list = False
+        for line in lines:
+            if re.match(r'^[\*\-] ', line):
+                if not in_list:
+                    result.append('<ul>')
+                    in_list = True
+                result.append(f'<li>{line[2:]}</li>')
+            else:
+                if in_list:
+                    result.append('</ul>')
+                    in_list = False
+                result.append(line)
+        if in_list:
+            result.append('</ul>')
+        html = '\n'.join(result)
+        
+        # Paragraphs
+        html = re.sub(r'\n\n+', '</p><p>', html)
+        html = f'<p>{html}</p>'
+        
+        return html
+
+
+def inject_practice_session(card_data_list, sentence_source):
+    """DEPRECATED: Use KanjiPracticeWindow instead."""
+    # This function is kept for compatibility but should not be used
+    pass
+    
+    english = fields.get('Sentence-English', fields.get('English', ''))
+    if not english:
+        for key in fields:
+            if 'english' in key.lower():
+                english = fields[key]
+                break
+    
+    if not english:
+        english = "(No English sentence found in card)"
+    
+    # Build HTML for practice interface
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+                padding: 20px;
+                max-width: 900px;
+                margin: 0 auto;
+            }}
+            .progress {{
+                padding: 10px;
+                background-color: #2196F3;
+                color: white;
+                font-weight: bold;
+                border-radius: 5px;
+                margin-bottom: 15px;
+            }}
+            .english {{
+                padding: 15px;
+                font-size: 16px;
+                background-color: #e8e8e8;
+                border-radius: 5px;
+                margin: 10px 0;
+                color: #000;
+            }}
+            .input-group {{
+                border: 1px solid #ddd;
+                padding: 15px;
+                border-radius: 5px;
+                margin: 10px 0;
+            }}
+            input[type="text"] {{
+                width: 100%;
+                font-size: 14px;
+                padding: 6px 10px;
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                font-family: 'Yu Gothic', 'MS Gothic', sans-serif;
+                line-height: 1.4;
+                height: auto;
+                box-sizing: border-box;
+            }}
+            .dict-group {{
+                border: 1px solid #ddd;
+                padding: 15px;
+                border-radius: 5px;
+                margin: 10px 0;
+            }}
+            .dict-search {{
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                margin-bottom: 10px;
+            }}
+            .dict-search input {{
+                flex: 1;
+                font-family: 'Yu Gothic', 'MS Gothic', sans-serif;
+                font-size: 14px;
+                padding: 6px 10px;
+            }}
+            .status {{
+                padding: 8px;
+                font-weight: bold;
+                border-radius: 3px;
+                margin: 10px 0;
+                display: none;
+            }}
+            .canvas-group {{
+                border: 1px solid #ddd;
+                padding: 15px;
+                border-radius: 5px;
+                margin: 10px 0;
+                text-align: center;
+            }}
+            .canvas-info {{
+                color: #666;
+                font-style: italic;
+                padding: 5px;
+                margin-bottom: 10px;
+            }}
+            .controls {{
+                display: flex;
+                gap: 10px;
+                justify-content: center;
+                margin: 10px 0;
+            }}
+            .btn-primary {{
+                background-color: #4CAF50;
+                color: white;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 3px;
+                cursor: pointer;
+                font-weight: bold;
+            }}
+            .btn-primary:hover {{
+                background-color: #45a049;
+            }}
+            .result {{
+                padding: 15px;
+                font-size: 16px;
+                background-color: #E3F2FD;
+                border-radius: 5px;
+                margin: 10px 0;
+                display: none;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="progress">Card 1 of {len(card_data_list)}</div>
+        <div class="english">{english}</div>
+        
+        <div class="input-group">
+            <label><b>Your Answer</b></label>
+            <input type="text" id="japanese-input" placeholder="Type or draw Japanese characters...">
+        </div>
+        
+        <div class="dict-group">
+            <label><b>Dictionary Lookup</b></label>
+            <div class="dict-search">
+                <span>Search kanji:</span>
+                <input type="text" id="dict-search" placeholder="Enter word/kanji to practice...">
+                <button onclick="lookupDictionary()">Look Up</button>
+            </div>
+        </div>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="canvas-group">
+            <div class="canvas-info" id="canvas-info">Free drawing mode - draw any character</div>
+            <div id="canvas-container"></div>
+            <div class="controls">
+                <button onclick="window.submitDrawing()">Submit Drawing</button>
+                <button onclick="window.clearCanvas()">Clear Canvas</button>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn-primary" onclick="submitAnswer()">Submit Answer</button>
+            <button onclick="skipCard()">Skip</button>
+            <button onclick="closePractice()">Close</button>
+        </div>
+        
+        <div class="result" id="result"></div>
+        <div class="controls">
+            <button class="btn-primary" id="next-btn" onclick="nextCard()" style="display:none;">Next Card</button>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # Set up message handler BEFORE injecting HTML
+    def handle_practice_message(handled, message, context):
+        debugPrint(f"Practice message received: {message}, context: {context}, our web: {mw.reviewer.web}")
+        
+        if message.startswith('charRecognized:'):
+            char = message.split(':', 1)[1]
+            # Insert into input field
+            js = f"document.getElementById('japanese-input').value += '{char}';"
+            mw.reviewer.web.eval(js)
+            # Show status
+            js = f"var s = document.getElementById('status'); s.textContent = '✓ Matched: {char}'; s.style.backgroundColor = '#4CAF50'; s.style.color = 'white'; s.style.display = 'block';"
+            mw.reviewer.web.eval(js)
+            # Clear canvas
+            QTimer.singleShot(500, lambda: mw.reviewer.web.eval('window.clearCanvas && window.clearCanvas()'))
+            return (True, None)
+        elif message.startswith('noMatch'):
+            # Show error
+            js = "var s = document.getElementById('status'); s.textContent = '⚠ No character matched - try again'; s.style.backgroundColor = '#f44336'; s.style.color = 'white'; s.style.display = 'block';"
+            mw.reviewer.web.eval(js)
+            # Clear canvas
+            QTimer.singleShot(100, lambda: mw.reviewer.web.eval('window.clearCanvas && window.clearCanvas()'))
+            return (True, None)
+        elif message.startswith('lookupKanji:'):
+            kanji = message.split(':', 1)[1]
+            debugPrint(f"Looking up kanji: {kanji}")
+            # Split into individual characters
+            kanji_list = [c for c in kanji if KANJI_REGEX.match(c) or HIRAGANA_REGEX.match(c) or KATAKANA_REGEX.match(c)]
+            if kanji_list:
+                # Store the list in JavaScript
+                kanji_list_js = json.dumps(kanji_list)
+                js = f"""
+                window.dictionaryKanjiList = {kanji_list_js};
+                window.currentKanjiIndex = 0;
+                """
+                mw.reviewer.web.eval(js)
+                # Load first character
+                inject_kanji_strokes(kanji_list[0])
+            return (True, None)
+        elif message.startswith('closePractice'):
+            mw.moveToState("overview")
+            return (True, None)
+        
+        return handled
+    
+    from aqt import gui_hooks
+    # Remove any existing handlers first
+    try:
+        gui_hooks.webview_did_receive_js_message.remove(handle_practice_message)
+    except ValueError:
+        pass
+    gui_hooks.webview_did_receive_js_message.append(handle_practice_message)
+    
+    # Set HTML content with embedded canvas JavaScript
+    full_html = html + inject_practice_canvas_js(card_data_list[0])
+    mw.reviewer.web.stdHtml(full_html, css=[], js=[])
+
+
+def inject_kanji_strokes(char):
+    """DEPRECATED: Load and display ghost strokes for a kanji character.
+    This function is kept for compatibility but should not be used.
+    Use KanjiPracticeWindow.inject_kanji_strokes() instead.
+    """
+    pass
+
+
+def inject_practice_canvas_js(card_data):
+    """DEPRECATED: Use KanjiPracticeWindow.get_practice_js() instead."""
+    pass
 
 
 def open_practice_dialog():

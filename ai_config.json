@@ -1,8 +1,9 @@
 {
   "api_url": "",
-  "api_key": "",
+  "api_key": "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",
   "model": "",
   "instructions": "Only use grammar concepts from the textbook up to and including Section 3.4.",
   "pdf_path": "C:/Users/0ylxe/Documents/Obsidian Vaults/Writer's Notebook/Documents & Images/Textbook/Tae Kim's Guide to Learning Japanese.pdf",
-  "sentence_source": "ai"
+  "sentence_source": "fields",
+  "ocr_model": ""
 }
