@@ -2422,6 +2422,10 @@ class KanjiPracticeWindow(QDialog):
                 self.close()
                 return (True, None)
             
+            elif message == "finishPractice":
+                self.show_completion_screen()
+                return (True, None)
+            
             elif message.startswith('saveCache:'):
                 try:
                     cache_data = json.loads(message.split(':', 1)[1])
@@ -2439,10 +2443,6 @@ class KanjiPracticeWindow(QDialog):
                             self.answered_cards.add(card_idx)
                             if cache_data.get('feedbackClass') == 'result correct':
                                 self.correct_cards.add(card_idx)
-                            
-                            # Check if all cards are answered
-                            if len(self.answered_cards) == len(self.card_data_list):
-                                self.show_completion_screen()
                 except Exception as e:
                     debugPrint(f"Error saving cache: {e}")
                 return (True, None)
@@ -2508,6 +2508,10 @@ class KanjiPracticeWindow(QDialog):
                 debugPrint("AI feedback not available - API key not configured")
                 return None
             
+            debugPrint(f"Using API key: {api_key[:10]}... (length: {len(api_key)})")
+            debugPrint(f"API URL: {api_url}")
+            debugPrint(f"Model: {model}")
+            
             # Build prompt
             prompt = f"""English: {english}
 Japanese translation: {accepted}
@@ -2551,10 +2555,42 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
             if result.get('choices') and len(result['choices']) > 0:
                 feedback = result['choices'][0]['message']['content'].strip()
                 debugPrint(f"AI feedback: {feedback[:100]}...")
+                
+                # Extract kanji characters from the accepted answer
+                import re
+                kanji_pattern = re.compile(r'[\u4E00-\u9FFF]')
+                kanji_chars = kanji_pattern.findall(accepted)
+                
+                # Bold and italicize each unique kanji in the feedback
+                if kanji_chars:
+                    unique_kanji = list(dict.fromkeys(kanji_chars))  # Preserve order, remove duplicates
+                    for kanji in unique_kanji:
+                        # Replace kanji with bold+italic version (***kanji***)
+                        # Skip if already formatted with ** or ***
+                        # Use negative lookbehind/lookahead to avoid:
+                        # - kanji inside furigana brackets
+                        # - kanji already surrounded by ** or ***
+                        feedback = re.sub(
+                            f'(?<!\\*)(?<![\\[])({re.escape(kanji)})(?![\\]])(?!\\*)',
+                            r'***\1***',
+                            feedback
+                        )
+                
                 return feedback
             
             return None
             
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                debugPrint(f"Error getting AI feedback: HTTP 401 Unauthorized")
+                debugPrint(f"Your API key may be invalid or expired. Please check your configuration.")
+                debugPrint(f"API URL: {api_url}")
+                return "⚠️ **API Authentication Error**: Your API key appears to be invalid or expired. Please check your AI configuration settings."
+            else:
+                debugPrint(f"Error getting AI feedback: HTTP Error {e.code}: {e.reason}")
+                import traceback
+                traceback.print_exc()
+                return None
         except Exception as e:
             debugPrint(f"Error getting AI feedback: {e}")
             import traceback
@@ -2763,7 +2799,7 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
             
             <div class="nav-controls">
                 <button onclick="pycmd('prevCard')" {"disabled" if self.current_index == 0 else ""}>Previous Card</button>
-                <button onclick="pycmd('nextCard')" {"disabled" if self.current_index >= len(self.card_data_list) - 1 and len(self.answered_cards) < len(self.card_data_list) else ""}>Next Card</button>
+                <button id="next-button" onclick="pycmd('nextCard')" {"disabled" if self.current_index >= len(self.card_data_list) - 1 else ""}>Next Card</button>
                 <button onclick="pycmd('closePractice')">Close Practice</button>
             </div>
         </body>
@@ -2795,6 +2831,35 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
         window.cardEnglish = {json.dumps(english)};
         window.cardJapanese = {json.dumps(japanese)};
         window.currentCardIndex = {self.current_index};
+        window.totalCards = {len(self.card_data_list)};
+        window.answeredCards = {json.dumps(list(self.answered_cards))};
+        
+        // Function to update Next button to Finish button when appropriate
+        window.updateNextButton = function() {{
+            var nextButton = document.getElementById('next-button');
+            if (!nextButton) return;
+            
+            // Check if we're on last card and all cards are answered
+            var isLastCard = window.currentCardIndex >= window.totalCards - 1;
+            var allAnswered = window.answeredCards.length >= window.totalCards;
+            
+            if (isLastCard && allAnswered) {{
+                // Convert to Finish button
+                nextButton.textContent = 'Finish';
+                nextButton.className = 'btn-primary';
+                nextButton.onclick = function() {{ pycmd('finishPractice'); }};
+                nextButton.disabled = false;
+            }} else if (isLastCard) {{
+                // On last card but not all answered - keep disabled
+                nextButton.disabled = true;
+            }} else {{
+                // Not on last card - keep as Next Card, enabled
+                nextButton.textContent = 'Next Card';
+                nextButton.className = '';
+                nextButton.onclick = function() {{ pycmd('nextCard'); }};
+                nextButton.disabled = false;
+            }}
+        }};
         
         // Restore cached answer and feedback for this card from Python cache
         setTimeout(function() {{
@@ -2811,6 +2876,9 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
                     result.style.display = 'block';
                 }}
             }}
+            
+            // Update button state on page load
+            window.updateNextButton();
         }}, 100);
         </script>
         """
@@ -2828,9 +2896,6 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
         if self.current_index < len(self.card_data_list) - 1:
             self.current_index += 1
             self.load_current_card()
-        elif len(self.answered_cards) == len(self.card_data_list):
-            # At last card and all answered - show completion
-            self.show_completion_screen()
     
     def prev_card(self):
         """Move to previous card."""
@@ -3404,6 +3469,14 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
                 feedback: result.innerHTML,
                 feedbackClass: result.className
             }));
+            
+            // Update answered cards tracking
+            if (!window.answeredCards.includes(window.currentCardIndex)) {
+                window.answeredCards.push(window.currentCardIndex);
+            }
+            
+            // Update Next/Finish button
+            window.updateNextButton();
         };
         
         // Simple markdown renderer with furigana support
