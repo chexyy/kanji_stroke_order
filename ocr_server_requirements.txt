@@ -1,0 +1,4 @@
+flask>=3.0.0
+flask-cors>=4.0.0
+manga-ocr>=0.1.11
+pillow>=10.0.0
