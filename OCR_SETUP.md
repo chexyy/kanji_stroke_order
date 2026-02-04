@@ -30,7 +30,7 @@ This add-on now uses OpenRouter AI for handwriting recognition instead of local 
 
 ## Default Model
 
-The default model is `google/gemini-flash-1.5` which:
+The default model is `google/gemini-flash-2.5` which:
 - Supports vision/image inputs
 - Works well with Japanese character recognition
 - Is cost-effective for OCR tasks

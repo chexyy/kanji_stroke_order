@@ -1,6 +1,6 @@
 from aqt import mw
 from aqt import gui_hooks
-from aqt.qt import QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QAction, QAbstractItemView, QComboBox, QCalendarWidget, QTextEdit, QFileDialog, QGroupBox, QTimer, Qt
+from aqt.qt import QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QAction, QAbstractItemView, QComboBox, QCalendarWidget, QTextEdit, QFileDialog, QGroupBox, QTimer, QProgressDialog, Qt
 import xml.etree.ElementTree as ET
 import re
 import urllib.parse
@@ -11,7 +11,6 @@ import sys
 import base64
 import io
 from datetime import datetime, timedelta
-from confettiJS import confettiJs
 
 # Debug flag and function (defined early so it can be used during imports)
 debug = True
@@ -19,6 +18,13 @@ debug = True
 def debugPrint(message):
     if debug:
         print("DEBUG:", message)
+
+# Try to import confetti, but continue if not available
+try:
+    from confettiJS import confettiJs
+except (ImportError, ModuleNotFoundError):
+    confettiJs = ""  # Fallback to empty string if confetti module not found
+    debugPrint("Warning: confettiJS module not found - confetti effects will be disabled")
 
 KANJI_REGEX = re.compile(r"[\u4E00-\u9FFF]")
 HIRAGANA_REGEX = re.compile(r"[\u3040-\u309F]")
@@ -31,6 +37,7 @@ CACHE_FILE = os.path.join(os.path.dirname(__file__), "kanji_cache.json")
 STATS_FILE = os.path.join(os.path.dirname(__file__), "kanji_stats.json")
 CARD_STATS_FILE = os.path.join(os.path.dirname(__file__), "card_stats.json")
 AI_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "ai_config.json")
+AI_SENTENCES_FILE = os.path.join(os.path.dirname(__file__), "ai_sentences.json")
 
 def load_cache():
     """Load kanji stroke data from cache file."""
@@ -100,7 +107,10 @@ def load_ai_config():
         'model': '',
         'ocr_model': '',
         'instructions': '',
-        'pdf_path': ''
+        'feedback_instructions': '',
+        'pdf_path': '',
+        'use_pdf_in_sentences': True,
+        'use_pdf_in_feedback': True
     }
 
 def save_ai_config(config):
@@ -110,6 +120,290 @@ def save_ai_config(config):
             json.dump(config, f, ensure_ascii=False, indent=2)
     except Exception as e:
         debugPrint(f"Error saving AI config: {e}")
+
+def load_ai_sentences():
+    """Load cached AI-generated sentences from file.
+    
+    Returns:
+        dict: Dictionary where keys are kanji and values are lists of {english, japanese} pairs
+    """
+    if os.path.exists(AI_SENTENCES_FILE):
+        try:
+            with open(AI_SENTENCES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            debugPrint(f"Error loading AI sentences: {e}")
+    return {}
+
+def save_ai_sentences(sentences):
+    """Save AI-generated sentences to file."""
+    try:
+        with open(AI_SENTENCES_FILE, "w", encoding="utf-8") as f:
+            json.dump(sentences, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        debugPrint(f"Error saving AI sentences: {e}")
+
+def get_learned_kanji_context(days_back=None, custom_date=None):
+    """Get kanji from cards reviewed within specified time range.
+    
+    Args:
+        days_back: Number of days to look back (None for all time)
+        custom_date: Specific date to filter from (datetime object)
+        
+    Returns:
+        String containing kanji-english pairs for AI context
+    """
+    try:
+        from aqt import mw
+        import time
+        
+        # Calculate cutoff timestamp
+        if custom_date:
+            cutoff_timestamp = int(custom_date.timestamp() * 1000)
+        elif days_back is not None:
+            cutoff_timestamp = int((time.time() - (days_back * 24 * 60 * 60)) * 1000)
+        else:
+            cutoff_timestamp = 0  # All time
+        
+        # Query Anki database for reviewed cards
+        query = f"rated:{days_back if days_back else 'all'}" if days_back else "rated:1000000"  # Large number for all time
+        card_ids = mw.col.find_cards(query)
+        
+        # Extract kanji and english from cards
+        kanji_pairs = []
+        seen_kanji = set()
+        
+        for card_id in card_ids:
+            try:
+                card = mw.col.get_card(card_id)
+                note = card.note()
+                fields = {key: note[key] for key in note.keys()}
+                
+                # Extract Vocabulary-Kanji and Vocabulary-English
+                kanji = fields.get('Vocabulary-Kanji', '')
+                english = fields.get('Vocabulary-English', '')
+                
+                if kanji and english and kanji not in seen_kanji:
+                    # Extract only kanji characters
+                    kanji_only = ''.join(re.findall(r'[\u4E00-\u9FFF]+', kanji))
+                    if kanji_only:
+                        kanji_pairs.append(f"{kanji_only}: {english}")
+                        seen_kanji.add(kanji)
+            except Exception as e:
+                debugPrint(f"Error processing card {card_id}: {e}")
+                continue
+        
+        if kanji_pairs:
+            context = "\n".join(kanji_pairs)
+            debugPrint(f"Extracted {len(kanji_pairs)} learned kanji for context")
+            return context
+        else:
+            debugPrint("No learned kanji found for context")
+            return None
+            
+    except Exception as e:
+        debugPrint(f"Error getting learned kanji context: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def generate_sentence_for_kanji(kanji_chars):
+    """Generate an English sentence and Japanese translation for given kanji characters.
+    
+    Args:
+        kanji_chars: String of kanji characters to use
+        
+    Returns:
+        dict with 'english' and 'japanese' keys, or None if generation fails
+    """
+    try:
+        ai_config = load_ai_config()
+        api_key = ai_config.get('api_key', '')
+        api_url = ai_config.get('api_url') or 'https://openrouter.ai/api/v1/chat/completions'
+        model = ai_config.get('model') or 'google/gemini-2.5-flash'
+        instructions = ai_config.get('instructions', '')
+        pdf_path = ai_config.get('pdf_path', '')
+        use_pdf = ai_config.get('use_pdf_in_sentences', True)
+        
+        if not api_key:
+            debugPrint("Sentence generation not available - API key not configured")
+            # Try to use cached sentence as fallback
+            cached_sentences = load_ai_sentences()
+            if cached_sentences:
+                import random
+                # Get sentences for this specific kanji, or any kanji if not available
+                if kanji_chars in cached_sentences:
+                    sentence = random.choice(cached_sentences[kanji_chars])
+                else:
+                    # Pick from any available kanji
+                    all_sentences = [s for sentences in cached_sentences.values() for s in sentences]
+                    sentence = random.choice(all_sentences) if all_sentences else None
+                if sentence:
+                    debugPrint(f"Using cached sentence: {sentence}")
+                    return sentence
+            return None
+        
+        # Get learned kanji context if configured
+        learned_kanji_context = None
+        kanji_time_range = ai_config.get('kanji_time_range', 'all')
+        kanji_custom_date = ai_config.get('kanji_custom_date', None)
+        
+        if kanji_time_range != 'all':
+            # Parse time range
+            days_map = {
+                '1day': 1,
+                '2days': 2,
+                '3days': 3,
+                '1week': 7,
+                '2weeks': 14,
+                '1month': 30
+            }
+            
+            if kanji_time_range == 'custom' and kanji_custom_date:
+                # Use custom date
+                from datetime import datetime
+                custom_date = datetime.fromisoformat(kanji_custom_date)
+                learned_kanji_context = get_learned_kanji_context(custom_date=custom_date)
+            elif kanji_time_range in days_map:
+                # Use predefined range
+                learned_kanji_context = get_learned_kanji_context(days_back=days_map[kanji_time_range])
+        
+        # Build base prompt
+        kanji_constraint = ""
+        if learned_kanji_context:
+            kanji_constraint = f"\n\nOnly use the following learned kanji in generating sentences. If the selection is too limited, only use basic kanji:\n{learned_kanji_context}"
+        
+        prompt = f"""Generate a simple Japanese sentence that uses the following kanji character(s): {kanji_chars}
+
+The sentence should be natural and appropriate for language learners.{kanji_constraint}
+
+Provide your response in the following JSON format:
+{{
+  "english": "The English translation",
+  "japanese": "The Japanese sentence"
+}}"""
+        
+        # Append custom instructions if provided
+        if instructions:
+            prompt += f"\n\nAdditional instructions:\n{instructions}"
+        
+        # Read PDF content if provided and enabled
+        pdf_content = ""
+        if use_pdf and pdf_path and os.path.exists(pdf_path):
+            try:
+                import PyPDF2
+                with open(pdf_path, 'rb') as pdf_file:
+                    pdf_reader = PyPDF2.PdfReader(pdf_file)
+                    pdf_content = "\n".join([page.extract_text() for page in pdf_reader.pages])
+                
+                if pdf_content:
+                    prompt += f"\n\nReference material:\n{pdf_content[:5000]}"  # Limit to first 5000 chars
+            except ImportError:
+                debugPrint("PyPDF2 not installed - skipping PDF content")
+            except Exception as e:
+                debugPrint(f"Error reading PDF: {e}")
+        
+        # Prepare API request
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        }
+        
+        debugPrint(f"Generating sentence for kanji: {kanji_chars}")
+        
+        # Make API request
+        request = urllib.request.Request(
+            api_url,
+            data=json.dumps(payload).encode('utf-8'),
+            headers=headers
+        )
+        
+        with urllib.request.urlopen(request, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+        
+        # Extract sentence data
+        if result.get('choices') and len(result['choices']) > 0:
+            content = result['choices'][0]['message']['content'].strip()
+            debugPrint(f"AI response: {content[:200]}...")
+            
+            # Try to parse JSON response
+            try:
+                # Remove markdown code blocks if present
+                if '```json' in content:
+                    content = content.split('```json')[1].split('```')[0].strip()
+                elif '```' in content:
+                    content = content.split('```')[1].split('```')[0].strip()
+                
+                sentence_data = json.loads(content)
+                
+                if 'english' in sentence_data and 'japanese' in sentence_data:
+                    debugPrint(f"Generated sentence - EN: {sentence_data['english']}, JP: {sentence_data['japanese']}")
+                    
+                    # Save this sentence to cache for future fallback use
+                    try:
+                        cached_sentences = load_ai_sentences()
+                        
+                        # Initialize kanji entry if it doesn't exist
+                        if kanji_chars not in cached_sentences:
+                            cached_sentences[kanji_chars] = []
+                        
+                        # Add sentence to this kanji's list (without kanji field in sentence itself)
+                        cached_sentences[kanji_chars].append({
+                            'english': sentence_data['english'],
+                            'japanese': sentence_data['japanese']
+                        })
+                        
+                        # Keep only the last 10 sentences per kanji to avoid duplicates
+                        if len(cached_sentences[kanji_chars]) > 10:
+                            cached_sentences[kanji_chars] = cached_sentences[kanji_chars][-10:]
+                        
+                        # Count total sentences across all kanji
+                        total_sentences = sum(len(sentences) for sentences in cached_sentences.values())
+                        
+                        save_ai_sentences(cached_sentences)
+                        debugPrint(f"Saved sentence to cache for '{kanji_chars}' ({len(cached_sentences[kanji_chars])} variations, {total_sentences} total)")
+                    except Exception as cache_error:
+                        debugPrint(f"Failed to cache sentence: {cache_error}")
+                    
+                    return sentence_data
+            except json.JSONDecodeError as e:
+                debugPrint(f"Failed to parse JSON response: {e}")
+                debugPrint(f"Content was: {content}")
+        
+        return None
+        
+    except Exception as e:
+        debugPrint(f"Error generating sentence: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Try to use cached sentence as fallback when API fails
+        debugPrint("API failed, attempting to use cached sentence as fallback")
+        cached_sentences = load_ai_sentences()
+        if cached_sentences:
+            import random
+            # Get sentences for this specific kanji, or any kanji if not available
+            if kanji_chars in cached_sentences:
+                sentence = random.choice(cached_sentences[kanji_chars])
+            else:
+                # Pick from any available kanji
+                all_sentences = [s for sentences in cached_sentences.values() for s in sentences]
+                sentence = random.choice(all_sentences) if all_sentences else None
+            if sentence:
+                debugPrint(f"Using cached fallback sentence: {sentence}")
+                return sentence
+        
+        return None
 
 # Load cache and stats at startup
 KANJI_CACHE = load_cache()
@@ -1621,7 +1915,7 @@ class AIConfigDialog(QDialog):
     def __init__(self, config, parent=None):
         super().__init__(parent)
         self.setWindowTitle("AI Configuration")
-        self.setMinimumSize(600, 500)
+        self.setMinimumSize(600, 700)
         
         self.config = config.copy()
         self.setup_ui()
@@ -1631,7 +1925,7 @@ class AIConfigDialog(QDialog):
         layout = QVBoxLayout()
         
         # Title
-        title = QLabel("<h2>AI Sentence Generation Configuration</h2>")
+        title = QLabel("<h2>AI Configuration</h2>")
         layout.addWidget(title)
         
         # API URL
@@ -1697,8 +1991,84 @@ class AIConfigDialog(QDialog):
             "- Include formal and informal examples"
         )
         self.instructions_input.setText(self.config.get('instructions', ''))
-        self.instructions_input.setMinimumHeight(150)
+        self.instructions_input.setMinimumHeight(80)
         instr_layout.addWidget(self.instructions_input)
+        
+        # Add fixed spacing between sentence generation box and feedback label
+        instr_layout.addSpacing(20)
+        
+        # Feedback instructions
+        feedback_instr_label = QLabel("Extra instructions for feedback generation:")
+        instr_layout.addWidget(feedback_instr_label)
+        
+        self.feedback_instructions_input = QTextEdit()
+        self.feedback_instructions_input.setPlaceholderText(
+            "Enter any specific instructions for generating feedback...\n"
+            "For example:\n"
+            "- Be encouraging and supportive\n"
+            "- Focus on grammar patterns\n"
+            "- Explain particle usage in detail"
+        )
+        self.feedback_instructions_input.setText(self.config.get('feedback_instructions', ''))
+        self.feedback_instructions_input.setMinimumHeight(80)
+        instr_layout.addWidget(self.feedback_instructions_input)
+        
+        # Add more spacing after feedback generation box
+        instr_layout.addSpacing(25)
+        
+        # Kanji time range selector
+        kanji_time_label = QLabel("Use kanji learned from:")
+        instr_layout.addWidget(kanji_time_label)
+        
+        kanji_time_layout = QHBoxLayout()
+        self.kanji_time_combo = QComboBox()
+        self.kanji_time_combo.addItems([
+            "All time",
+            "Last 1 day",
+            "Last 2 days",
+            "Last 3 days",
+            "Last 1 week",
+            "Last 2 weeks",
+            "Last 1 month",
+            "Custom"
+        ])
+        
+        # Map combo items to config values
+        time_map = {
+            "All time": "all",
+            "Last 1 day": "1day",
+            "Last 2 days": "2days",
+            "Last 3 days": "3days",
+            "Last 1 week": "1week",
+            "Last 2 weeks": "2weeks",
+            "Last 1 month": "1month",
+            "Custom": "custom"
+        }
+        
+        # Set current value
+        current_range = self.config.get('kanji_time_range', 'all')
+        reverse_map = {v: k for k, v in time_map.items()}
+        if current_range in reverse_map:
+            self.kanji_time_combo.setCurrentText(reverse_map[current_range])
+        
+        self.kanji_time_combo.currentTextChanged.connect(self.on_kanji_time_changed)
+        kanji_time_layout.addWidget(self.kanji_time_combo)
+        
+        # Calendar for custom date
+        self.kanji_calendar_btn = QPushButton("Select Date...")
+        self.kanji_calendar_btn.clicked.connect(self.select_kanji_date)
+        self.kanji_calendar_btn.setVisible(current_range == 'custom')
+        kanji_time_layout.addWidget(self.kanji_calendar_btn)
+        
+        # Label to show selected custom date
+        self.kanji_date_label = QLabel("")
+        if current_range == 'custom' and self.config.get('kanji_custom_date'):
+            self.kanji_date_label.setText(f"From: {self.config.get('kanji_custom_date')}")
+        self.kanji_date_label.setVisible(current_range == 'custom')
+        kanji_time_layout.addWidget(self.kanji_date_label)
+        
+        instr_layout.addLayout(kanji_time_layout)
+        instr_layout.addSpacing(15)
         
         # PDF attachment
         pdf_layout = QHBoxLayout()
@@ -1720,6 +2090,19 @@ class AIConfigDialog(QDialog):
         pdf_layout.addWidget(browse_btn)
         pdf_layout.addWidget(clear_pdf_btn)
         instr_layout.addLayout(pdf_layout)
+        
+        # PDF usage checkboxes
+        from aqt.qt import QCheckBox
+        pdf_usage_label = QLabel("Use attached PDF in:")
+        instr_layout.addWidget(pdf_usage_label)
+        
+        self.use_pdf_sentences_checkbox = QCheckBox("Sentence generation")
+        self.use_pdf_sentences_checkbox.setChecked(self.config.get('use_pdf_in_sentences', True))
+        instr_layout.addWidget(self.use_pdf_sentences_checkbox)
+        
+        self.use_pdf_feedback_checkbox = QCheckBox("Feedback generation")
+        self.use_pdf_feedback_checkbox.setChecked(self.config.get('use_pdf_in_feedback', True))
+        instr_layout.addWidget(self.use_pdf_feedback_checkbox)
         
         instr_group.setLayout(instr_layout)
         layout.addWidget(instr_group)
@@ -1761,6 +2144,66 @@ class AIConfigDialog(QDialog):
         self.pdf_path_label.setText('No file selected')
         self.pdf_path_label.setStyleSheet("color: gray; font-style: italic; background-color: #f0f0f0; padding: 5px; border-radius: 3px;")
     
+    def on_kanji_time_changed(self, text):
+        """Handle kanji time range selection change."""
+        is_custom = (text == "Custom")
+        self.kanji_calendar_btn.setVisible(is_custom)
+        self.kanji_date_label.setVisible(is_custom)
+        
+        # Update config
+        time_map = {
+            "All time": "all",
+            "Last 1 day": "1day",
+            "Last 2 days": "2days",
+            "Last 3 days": "3days",
+            "Last 1 week": "1week",
+            "Last 2 weeks": "2weeks",
+            "Last 1 month": "1month",
+            "Custom": "custom"
+        }
+        self.config['kanji_time_range'] = time_map.get(text, 'all')
+    
+    def select_kanji_date(self):
+        """Show calendar to select custom date for kanji filtering."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Start Date")
+        layout = QVBoxLayout()
+        
+        calendar = QCalendarWidget()
+        # Set to current date or saved date
+        if self.config.get('kanji_custom_date'):
+            from datetime import datetime
+            try:
+                saved_date = datetime.fromisoformat(self.config['kanji_custom_date'])
+                from aqt.qt import QDate
+                calendar.setSelectedDate(QDate(saved_date.year, saved_date.month, saved_date.day))
+            except:
+                pass
+        
+        layout.addWidget(calendar)
+        
+        button_layout = QHBoxLayout()
+        ok_btn = QPushButton("OK")
+        cancel_btn = QPushButton("Cancel")
+        
+        def on_ok():
+            selected = calendar.selectedDate()
+            from datetime import datetime
+            date_obj = datetime(selected.year(), selected.month(), selected.day())
+            self.config['kanji_custom_date'] = date_obj.isoformat()
+            self.kanji_date_label.setText(f"From: {date_obj.strftime('%Y-%m-%d')}")
+            dialog.accept()
+        
+        ok_btn.clicked.connect(on_ok)
+        cancel_btn.clicked.connect(dialog.reject)
+        
+        button_layout.addWidget(ok_btn)
+        button_layout.addWidget(cancel_btn)
+        layout.addLayout(button_layout)
+        
+        dialog.setLayout(layout)
+        dialog.exec()
+    
     def get_config(self):
         """Get the current configuration."""
         self.config['api_url'] = self.url_input.text()
@@ -1768,6 +2211,10 @@ class AIConfigDialog(QDialog):
         self.config['model'] = self.model_input.text()
         self.config['ocr_model'] = self.ocr_model_input.text()
         self.config['instructions'] = self.instructions_input.toPlainText()
+        self.config['feedback_instructions'] = self.feedback_instructions_input.toPlainText()
+        self.config['use_pdf_in_sentences'] = self.use_pdf_sentences_checkbox.isChecked()
+        self.config['use_pdf_in_feedback'] = self.use_pdf_feedback_checkbox.isChecked()
+        # kanji_time_range and kanji_custom_date are already set in callbacks
         # Save to file
         save_ai_config(self.config)
         return self.config
@@ -2184,6 +2631,58 @@ class KanjiPracticeDialog(QDialog):
                 QMessageBox.warning(self, "Error", "Could not load any card data.")
                 return
             
+            # Generate AI sentences if needed
+            if self.sentence_source == "ai":
+                debugPrint("Generating AI sentences for cards...")
+                progress = QProgressDialog("Generating sentences...", "Cancel", 0, len(card_data_list), self)
+                progress.setWindowTitle("AI Sentence Generation")
+                progress.setWindowModality(Qt.WindowModality.WindowModal)
+                
+                for i, card_data in enumerate(card_data_list):
+                    if progress.wasCanceled():
+                        return
+                    
+                    progress.setValue(i)
+                    progress.setLabelText(f"Generating sentence {i+1} of {len(card_data_list)}...")
+                    
+                    # Extract kanji characters from card
+                    kanji_chars = ""
+                    fields = card_data['fields']
+                    
+                    # Look for Expression or Kanji field
+                    for field_name in ['Expression', 'Kanji', 'Word', 'Front']:
+                        if field_name in fields:
+                            # Extract only kanji characters (Unicode range U+4E00 to U+9FFF)
+                            import re
+                            kanji_pattern = re.compile(r'[\u4E00-\u9FFF]+')
+                            kanji_matches = kanji_pattern.findall(fields[field_name])
+                            if kanji_matches:
+                                kanji_chars = ''.join(kanji_matches)
+                                break
+                    
+                    if not kanji_chars:
+                        debugPrint(f"No kanji found in card {card_data['card_id']}, skipping sentence generation")
+                        # Use placeholder
+                        card_data['fields']['Sentence-English'] = "(No kanji found)"
+                        card_data['fields']['Sentence-Japanese'] = ""
+                        continue
+                    
+                    # Generate sentence
+                    sentence_data = generate_sentence_for_kanji(kanji_chars)
+                    
+                    if sentence_data:
+                        # Store generated sentences in fields
+                        card_data['fields']['Sentence-English'] = sentence_data['english']
+                        card_data['fields']['Sentence-Japanese'] = sentence_data['japanese']
+                        debugPrint(f"Generated for {kanji_chars}: {sentence_data['japanese']}")
+                    else:
+                        # Fallback
+                        card_data['fields']['Sentence-English'] = f"(Failed to generate sentence for {kanji_chars})"
+                        card_data['fields']['Sentence-Japanese'] = kanji_chars
+                        debugPrint(f"Failed to generate sentence for {kanji_chars}")
+                
+                progress.setValue(len(card_data_list))
+            
             debugPrint(f"Starting practice with {len(card_data_list)} cards")
             
             # Close this dialog
@@ -2448,17 +2947,18 @@ class KanjiPracticeWindow(QDialog):
                 return (True, None)
             
             elif message.startswith("getFeedback:"):
-                # Format: getFeedback:{"english":"...","accepted":"...","submitted":"..."}
+                # Format: getFeedback:{"english":"...","accepted":"...","submitted":"...","originalKanji":"..."}
                 try:
                     feedback_data = json.loads(message.split(":", 1)[1])
                     english = feedback_data.get('english', '')
                     accepted = feedback_data.get('accepted', '')
                     submitted = feedback_data.get('submitted', '')
+                    original_kanji = feedback_data.get('originalKanji', '')
                     
                     print(f"[KanjiPracticeWindow] Getting feedback for: '{submitted}' vs '{accepted}'")
                     
                     # Get AI feedback
-                    feedback = self.get_ai_feedback(english, accepted, submitted)
+                    feedback = self.get_ai_feedback(english, accepted, submitted, original_kanji)
                     
                     if feedback:
                         # Send feedback back to JavaScript
@@ -2495,7 +2995,7 @@ class KanjiPracticeWindow(QDialog):
         
         return (handled, None)
     
-    def get_ai_feedback(self, english, accepted, submitted):
+    def get_ai_feedback(self, english, accepted, submitted, original_kanji=''):
         """Get AI feedback on the submitted answer."""
         try:
             # Load AI config
@@ -2503,6 +3003,9 @@ class KanjiPracticeWindow(QDialog):
             api_key = ai_config.get('api_key', '')
             api_url = ai_config.get('api_url') or 'https://openrouter.ai/api/v1/chat/completions'
             model = ai_config.get('model') or 'google/gemini-2.5-flash'
+            feedback_instructions = ai_config.get('feedback_instructions', '')
+            pdf_path = ai_config.get('pdf_path', '')
+            use_pdf = ai_config.get('use_pdf_in_feedback', True)
             
             if not api_key:
                 debugPrint("AI feedback not available - API key not configured")
@@ -2517,11 +3020,30 @@ class KanjiPracticeWindow(QDialog):
 Japanese translation: {accepted}
 Attempted Japanese translation: {submitted}
 
-If the attempted translation is correct AND matches the given Japanese sentence, immediately return ✅ Correct
+If the attempted translation is correct AND matches the WHOLE given Japanese sentence, immediately return ✅ Correct
 
-If the attempted translation is incorrect, focus on conceptually why the translation is not correct in a markdown format and include the GIVEN Japanese translation as part of the feedback.
+If the attempted translation is incorrect, DO NOT RESPOND WITH '✅ Correct'. Instead, focus on conceptually why the translation is not correct in a markdown format and include the GIVEN Japanese translation as part of the feedback.
 
-When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (kanji followed by reading in square brackets)."""
+When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (kanji followed by reading in *Hiragana* in square brackets). Moreover, DO NOT use Romanji in your feedback, and rely on furigana for pronounication of Kanji."""
+            
+            # Append custom feedback instructions if provided
+            if feedback_instructions:
+                prompt += f"\n\nAdditional instructions:\n{feedback_instructions}"
+            
+            # Read PDF content if provided and enabled
+            if use_pdf and pdf_path and os.path.exists(pdf_path):
+                try:
+                    import PyPDF2
+                    with open(pdf_path, 'rb') as pdf_file:
+                        pdf_reader = PyPDF2.PdfReader(pdf_file)
+                        pdf_content = "\n".join([page.extract_text() for page in pdf_reader.pages])
+                    
+                    if pdf_content:
+                        prompt += f"\n\nReference material:\n{pdf_content[:5000]}"  # Limit to first 5000 chars
+                except ImportError:
+                    debugPrint("PyPDF2 not installed - skipping PDF content")
+                except Exception as e:
+                    debugPrint(f"Error reading PDF: {e}")
             
             # Prepare API request
             headers = {
@@ -2556,25 +3078,36 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
                 feedback = result['choices'][0]['message']['content'].strip()
                 debugPrint(f"AI feedback: {feedback[:100]}...")
                 
-                # Extract kanji characters from the accepted answer
-                import re
-                kanji_pattern = re.compile(r'[\u4E00-\u9FFF]')
-                kanji_chars = kanji_pattern.findall(accepted)
-                
-                # Bold and italicize each unique kanji in the feedback
-                if kanji_chars:
-                    unique_kanji = list(dict.fromkeys(kanji_chars))  # Preserve order, remove duplicates
-                    for kanji in unique_kanji:
-                        # Replace kanji with bold+italic version (***kanji***)
-                        # Skip if already formatted with ** or ***
-                        # Use negative lookbehind/lookahead to avoid:
-                        # - kanji inside furigana brackets
-                        # - kanji already surrounded by ** or ***
-                        feedback = re.sub(
-                            f'(?<!\\*)(?<![\\[])({re.escape(kanji)})(?![\\]])(?!\\*)',
-                            r'***\1***',
-                            feedback
-                        )
+                # Highlight the original card kanji with color #00f5d5 in the feedback
+                if original_kanji:
+                    import re
+                    
+                    # First convert furigana format to HTML ruby tags
+                    # Pattern: 漢字[かんじ] -> <ruby>漢字<rt>かんじ</rt></ruby>
+                    feedback = re.sub(
+                        r'([一-龯ぁ-ゔァ-ヴー々〆〤]+)\[([ぁ-んァ-ヴー]+)\]',
+                        r'<ruby>\1<rt>\2</rt></ruby>',
+                        feedback
+                    )
+                    
+                    # Now highlight kanji within ruby tags
+                    # Pattern: <ruby>漢字<rt>reading</rt></ruby> -> <span style="color: #00f5d5"><ruby>漢字<rt>reading</rt></ruby></span>
+                    escaped_kanji = re.escape(original_kanji)
+                    
+                    # Replace entire ruby tag containing the kanji
+                    feedback = re.sub(
+                        f'(<ruby>)({escaped_kanji})(<rt>[^<]+</rt></ruby>)',
+                        r'<span style="color: #00f5d5">\1\2\3</span>',
+                        feedback
+                    )
+                    
+                    # Also handle plain kanji (not in ruby tags) - use span with color instead of bold
+                    # Avoid kanji already in span tags
+                    feedback = re.sub(
+                        f'(?<!>)(?<!<rt>)({escaped_kanji})(?!<)(?!</rt>)',
+                        r'<span style="color: #00f5d5">\1</span>',
+                        feedback
+                    )
                 
                 return feedback
             
@@ -2602,16 +3135,91 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
         current_card = self.card_data_list[self.current_index]
         fields = current_card['fields']
         
-        # Get English sentence
-        english = fields.get('Sentence-English', fields.get('English', ''))
-        if not english:
-            for key in fields:
-                if 'english' in key.lower():
-                    english = fields[key]
-                    break
+        # Extract original vocabulary from the card (for highlighting in feedback and AI generation)
+        import re
+        original_kanji = ''
+        for field_name in ['Vocabulary-Kanji']:
+            if field_name in fields:
+                # Capture the entire field value (kanji + kana), not just kanji characters
+                original_kanji = fields[field_name].strip()
+                break
         
-        if not english:
-            english = "(No English sentence found in card)"
+        # Determine English and Japanese sentences based on sentence_source BEFORE building HTML
+        if self.sentence_source == "ai":
+            # Always generate fresh sentences to build cache (up to 100 sentences)
+            # Fallback to cached sentences only happens on API errors inside generate_sentence_for_kanji()
+            if original_kanji:
+                # Generate sentence dynamically using AI
+                debugPrint(f"Generating AI sentence for kanji: {original_kanji}")
+                sentence_data = generate_sentence_for_kanji(original_kanji)
+                if sentence_data and 'japanese' in sentence_data and 'english' in sentence_data:
+                    japanese = sentence_data['japanese']
+                    english = sentence_data['english']
+                    debugPrint(f"Generated sentence - EN: {english}, JP: {japanese}")
+                else:
+                    # Fallback to field if generation fails
+                    debugPrint("AI generation failed, falling back to card field")
+                    japanese = fields.get('Expression', fields.get('Sentence-Japanese', fields.get('Japanese', '')))
+                    if not japanese:
+                        for key in fields:
+                            if 'japanese' in key.lower() or 'expression' in key.lower():
+                                japanese = fields[key]
+                                break
+                    if not japanese:
+                        japanese = f"(AI generation failed for {original_kanji})"
+                    
+                    # Also get English from field as fallback
+                    english = fields.get('Sentence-English', fields.get('English', ''))
+                    if not english:
+                        for key in fields:
+                            if 'english' in key.lower():
+                                english = fields[key]
+                                break
+                    if not english:
+                        english = f"(AI generation failed for {original_kanji})"
+            else:
+                # No kanji found, fallback to field
+                japanese = fields.get('Expression', fields.get('Sentence-Japanese', fields.get('Japanese', '')))
+                if not japanese:
+                    for key in fields:
+                        if 'japanese' in key.lower() or 'expression' in key.lower():
+                            japanese = fields[key]
+                            break
+                if not japanese:
+                    japanese = "(No kanji found for AI generation)"
+                
+                # Also get English from field
+                english = fields.get('Sentence-English', fields.get('English', ''))
+                if not english:
+                    for key in fields:
+                        if 'english' in key.lower():
+                            english = fields[key]
+                            break
+                if not english:
+                    english = "(No kanji found for AI generation)"
+        else:
+            # Use field-based sentences
+            japanese = fields.get('Expression', fields.get('Sentence-Japanese', fields.get('Japanese', '')))
+            if not japanese:
+                for key in fields:
+                    if 'japanese' in key.lower() or 'expression' in key.lower():
+                        japanese = fields[key]
+                        break
+            if not japanese:
+                japanese = ''
+            
+            # Get English from field
+            english = fields.get('Sentence-English', fields.get('English', ''))
+            if not english:
+                for key in fields:
+                    if 'english' in key.lower():
+                        english = fields[key]
+                        break
+            if not english:
+                english = "(No English sentence found in card)"
+        
+        # Trim whitespace from accepted answer
+        japanese = japanese.strip()
         
         # Build HTML for practice interface
         html = f"""
@@ -2748,6 +3356,7 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
                 }}
                 .result strong {{
                     color: #00f5d5;
+                    font-weight: bold;
                 }}
                 .nav-controls {{
                     display: flex;
@@ -2806,19 +3415,6 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
         </html>
         """
         
-        # Get accepted Japanese translation
-        japanese = fields.get('Expression', fields.get('Sentence-Japanese', fields.get('Japanese', '')))
-        if not japanese:
-            for key in fields:
-                if 'japanese' in key.lower() or 'expression' in key.lower():
-                    japanese = fields[key]
-                    break
-        if not japanese:
-            japanese = ''
-        
-        # Trim whitespace from accepted answer
-        japanese = japanese.strip()
-        
         # Add JavaScript for drawing and interaction
         js_code = self.get_practice_js()
         
@@ -2830,6 +3426,7 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
         <script>
         window.cardEnglish = {json.dumps(english)};
         window.cardJapanese = {json.dumps(japanese)};
+        window.cardOriginalKanji = {json.dumps(original_kanji)};
         window.currentCardIndex = {self.current_index};
         window.totalCards = {len(self.card_data_list)};
         window.answeredCards = {json.dumps(list(self.answered_cards))};
@@ -2978,7 +3575,15 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
                 window.currentStrokeIndex = 0;
                 window.ghostStrokes = [];
                 window.dictionaryMode = false;
-                window.animationStartTime = null;
+                
+                // Animation variables (copied from card view)
+                window.drawProgress = 0;
+                window.repeatProgress = 0;
+                window.previousStrokeIndex = 0;
+                window.lastAnimTime = null;
+                window.drawDuration = 12000;
+                window.repeatDuration = 1600;
+                window.dashLength = 1000;
                 
                 // Set up event listeners for drawing
                 canvas.addEventListener('pointerdown', window.startDrawing);
@@ -2991,6 +3596,36 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
                 
                 // Initialize undo/redo button states
                 window.updateUndoRedoButtons();
+                
+                // Start animation loop for dictionary mode (copied from card view)
+                function animate(timestamp) {
+                    if (!window.lastAnimTime) window.lastAnimTime = timestamp;
+                    var dt = timestamp - window.lastAnimTime;
+                    window.lastAnimTime = timestamp;
+                    
+                    if (window.dictionaryMode && window.ghostStrokes && window.ghostStrokes.length > 0) {
+                        // Reset animation if current stroke changed
+                        if (window.currentStrokeIndex !== window.previousStrokeIndex) {
+                            window.drawProgress = 0;
+                            window.repeatProgress = 0;
+                            window.previousStrokeIndex = window.currentStrokeIndex;
+                        }
+                        
+                        // Update animation progress
+                        window.drawProgress += dt / window.drawDuration;
+                        if (window.drawProgress > 1) window.drawProgress = 1;
+                        
+                        window.repeatProgress += dt / window.repeatDuration;
+                        if (window.repeatProgress >= 1) {
+                            window.repeatProgress = 0;
+                            window.drawProgress = 0;
+                        }
+                        
+                        window.redrawCanvas();
+                    }
+                    requestAnimationFrame(animate);
+                }
+                requestAnimationFrame(animate);
                 
                 console.log('Canvas initialized');
             }
@@ -3242,6 +3877,23 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
                     }
                 }
                 
+                // Draw animated stroke for current expected stroke (copied from card view)
+                if (window.currentStrokeIndex < window.ghostStrokes.length) {
+                    var currentStroke = window.ghostStrokes[window.currentStrokeIndex];
+                    if (currentStroke && currentStroke.path) {
+                        ctx.lineWidth = 5;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+                        
+                        // Use the same dash animation as card view
+                        ctx.setLineDash([window.dashLength, window.dashLength]);
+                        ctx.lineDashOffset = -window.dashLength * window.drawProgress;
+                        
+                        ctx.stroke(currentStroke.path);
+                    }
+                }
+                
                 ctx.restore();
             };
             
@@ -3434,7 +4086,8 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
             var feedbackRequest = {
                 english: window.cardEnglish || '',
                 accepted: acceptedAnswer,
-                submitted: submittedAnswer
+                submitted: submittedAnswer,
+                originalKanji: window.cardOriginalKanji || ''
             };
             
             pycmd('getFeedback:' + JSON.stringify(feedbackRequest));
@@ -3576,6 +4229,16 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
                 if (event.key === 'Enter') {
                     event.preventDefault();
                     window.lookupDictionary();
+                }
+            });
+        };
+        
+        var answerInput = document.getElementById('japanese-input');
+        if (answerInput) {
+            answerInput.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    window.submitAnswer();
                 }
             });
         };
@@ -4135,7 +4798,7 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
             feedbacks_text = "\n\n---\n\n".join(incorrect_feedbacks)
             prompt = f"""Based on these feedback messages from incorrect Japanese translation attempts, identify the main trends, common mistakes, and concepts/topics the student should focus on. Be concise but helpful.
 
-When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (kanji followed by reading in square brackets; no space between the kanji and the square brackets).
+When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (kanji followed by *Hiragana* reading in square brackets; no space between the kanji and the square brackets).
 
 Feedbacks:
 {feedbacks_text}
