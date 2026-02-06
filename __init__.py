@@ -38,6 +38,15 @@ STATS_FILE = os.path.join(os.path.dirname(__file__), "kanji_stats.json")
 CARD_STATS_FILE = os.path.join(os.path.dirname(__file__), "card_stats.json")
 AI_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "ai_config.json")
 AI_SENTENCES_FILE = os.path.join(os.path.dirname(__file__), "ai_sentences.json")
+HANDWRITING_DATASET_FILE = os.path.join(os.path.dirname(__file__), "handwriting_dataset.json")
+
+# Global variables for custom handwriting model (deprecated - now using model server)
+CUSTOM_MODEL = None
+CUSTOM_MODEL_MAPPINGS = None
+CUSTOM_MODEL_PATH = None
+MODEL_SERVER_URL = "http://localhost:8766"
+MODEL_SERVER_PROCESS = None
+MODEL_SERVER_STARTED = False  # Track if we already attempted to start the server
 
 def load_cache():
     """Load kanji stroke data from cache file."""
@@ -143,6 +152,81 @@ def save_ai_sentences(sentences):
     except Exception as e:
         debugPrint(f"Error saving AI sentences: {e}")
 
+def load_handwriting_dataset():
+    """Load handwriting dataset from file.
+    
+    Returns:
+        dict: Dictionary with structure:
+        {
+            "character": [
+                {
+                    "image": "base64_canvas_data",
+                    "timestamp": "2026-02-04T12:34:56",
+                    "strokes": [...],  # Optional stroke data
+                    "success": true
+                },
+                ...
+            ],
+            ...
+        }
+    """
+    if os.path.exists(HANDWRITING_DATASET_FILE):
+        try:
+            with open(HANDWRITING_DATASET_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            debugPrint(f"Error loading handwriting dataset: {e}")
+    return {}
+
+def save_handwriting_dataset(dataset):
+    """Save handwriting dataset to file."""
+    try:
+        with open(HANDWRITING_DATASET_FILE, "w", encoding="utf-8") as f:
+            json.dump(dataset, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        debugPrint(f"Error saving handwriting dataset: {e}")
+
+def add_handwriting_sample(character, image_data, strokes=None, success=True):
+    """Add a handwriting sample to the dataset.
+    
+    Args:
+        character (str): The character that was drawn
+        image_data (str): Base64 encoded canvas image
+        strokes (list): Optional list of stroke data
+        success (bool): Whether the trace was successful (default True, only used if explicitly set to False)
+    """
+    try:
+        dataset = load_handwriting_dataset()
+        
+        # Initialize character entry if it doesn't exist
+        if character not in dataset:
+            dataset[character] = []
+        
+        # Create sample entry (success field omitted since all card traces are successful)
+        sample = {
+            "image": image_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        if strokes is not None:
+            sample["strokes"] = strokes
+        
+        # Add to dataset
+        dataset[character].append(sample)
+        
+        # Save updated dataset
+        save_handwriting_dataset(dataset)
+        
+        # Log statistics
+        total_samples = sum(len(samples) for samples in dataset.values())
+        char_samples = len(dataset[character])
+        debugPrint(f"Added handwriting sample for '{character}' ({char_samples} samples for this character, {total_samples} total)")
+        
+        return True
+    except Exception as e:
+        debugPrint(f"Error adding handwriting sample: {e}")
+        return False
+
 def get_learned_kanji_context(days_back=None, custom_date=None):
     """Get kanji from cards reviewed within specified time range.
     
@@ -166,7 +250,7 @@ def get_learned_kanji_context(days_back=None, custom_date=None):
             cutoff_timestamp = 0  # All time
         
         # Query Anki database for reviewed cards
-        query = f"rated:{days_back if days_back else 'all'}" if days_back else "rated:1000000"  # Large number for all time
+        query = f"rated:{days_back if days_back else 'all'} prop:reps>0" if days_back else "rated:1000000"  # Large number for all time
         card_ids = mw.col.find_cards(query)
         
         # Extract kanji and english from cards
@@ -413,9 +497,343 @@ CARD_STATS = load_card_stats()
 # OpenRouter API configuration for OCR (using ai_config.json)
 AI_CONFIG = load_ai_config()
 OPENROUTER_API_KEY = AI_CONFIG.get('api_key', '')
-OPENROUTER_API_URL = AI_CONFIG.get('api_url', 'https://openrouter.ai/api/v1/chat/completions')
 OPENROUTER_MODEL = AI_CONFIG.get('ocr_model') or 'google/gemini-2.0-flash-001'
 OCR_AVAILABLE = bool(OPENROUTER_API_KEY)
+
+def get_latest_model_path():
+    """Find the most recent trained model file."""
+    addon_dir = os.path.dirname(__file__)
+    model_files = [f for f in os.listdir(addon_dir) if f.startswith('handwriting_model_') and f.endswith('.keras')]
+    
+    if not model_files:
+        # Try best_model.keras
+        best_model = os.path.join(addon_dir, 'best_model.keras')
+        if os.path.exists(best_model):
+            return best_model
+        return None
+    
+    # Get most recent
+    latest_model = sorted(model_files)[-1]
+    return os.path.join(addon_dir, latest_model)
+
+
+def load_custom_model():
+    """Load the custom handwriting recognition model."""
+    global CUSTOM_MODEL, CUSTOM_MODEL_MAPPINGS, CUSTOM_MODEL_PATH
+    
+    try:
+        import tensorflow as tf
+        
+        model_path = get_latest_model_path()
+        if not model_path:
+            debugPrint("No trained model found")
+            return False
+        
+        # Load character mappings
+        addon_dir = os.path.dirname(__file__)
+        if 'handwriting_model_' in model_path:
+            timestamp = os.path.basename(model_path).replace('handwriting_model_', '').replace('.keras', '')
+            mapping_file = os.path.join(addon_dir, f'char_mappings_{timestamp}.json')
+        else:
+            # Look for any mapping file
+            mapping_files = [f for f in os.listdir(addon_dir) if f.startswith('char_mappings_')]
+            if not mapping_files:
+                debugPrint("No character mappings found")
+                return False
+            mapping_file = os.path.join(addon_dir, sorted(mapping_files)[-1])
+        
+        with open(mapping_file, 'r', encoding='utf-8') as f:
+            CUSTOM_MODEL_MAPPINGS = json.load(f)
+        
+        # Load model
+        CUSTOM_MODEL = tf.keras.models.load_model(model_path)
+        CUSTOM_MODEL_PATH = model_path
+        debugPrint(f"Custom model loaded from {model_path}")
+        debugPrint(f"Model recognizes {len(CUSTOM_MODEL_MAPPINGS['char_to_idx'])} characters")
+        return True
+        
+    except ImportError:
+        debugPrint("TensorFlow not installed - custom model unavailable")
+        return False
+    except Exception as e:
+        debugPrint(f"Error loading custom model: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def predict_with_custom_model(image_data_base64):
+    """
+    Predict character using custom trained model.
+    
+    Returns:
+        tuple: (recognized_text, confidence, all_results) or (None, 0, [])
+    """
+    global CUSTOM_MODEL, CUSTOM_MODEL_MAPPINGS
+    
+    if CUSTOM_MODEL is None:
+        return None, 0, []
+    
+    try:
+        import numpy as np
+        from PIL import Image
+        from io import BytesIO
+        
+        # Remove data URL prefix if present
+        if ',' in image_data_base64:
+            image_data_base64 = image_data_base64.split(',', 1)[1]
+        
+        # Decode image
+        image_data = base64.b64decode(image_data_base64)
+        img = Image.open(BytesIO(image_data))
+        
+        # Preprocess image (same as training)
+        if img.mode != 'L':
+            img = img.convert('L')
+        img = img.resize((64, 64), Image.Resampling.LANCZOS)
+        img_array = np.array(img, dtype=np.float32) / 255.0
+        img_array = 1.0 - img_array  # Invert colors
+        img_array = np.expand_dims(img_array, axis=-1)
+        img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
+        
+        # Predict
+        predictions = CUSTOM_MODEL.predict(img_array, verbose=0)[0]
+        
+        # Get top 5 predictions
+        idx_to_char = {int(k): v for k, v in CUSTOM_MODEL_MAPPINGS['idx_to_char'].items()}
+        top_indices = np.argsort(predictions)[-5:][::-1]
+        
+        results = []
+        for idx in top_indices:
+            char = idx_to_char[idx]
+            confidence = float(predictions[idx])
+            results.append((char, confidence))
+        
+        if results:
+            top_char, top_confidence = results[0]
+            debugPrint(f"Custom model prediction: '{top_char}' (confidence: {top_confidence:.2f})")
+            return top_char, top_confidence, results
+        
+        return None, 0, []
+        
+    except Exception as e:
+        debugPrint(f"Error in custom model prediction: {e}")
+        import traceback
+        traceback.print_exc()
+        return None, 0, []
+
+
+def start_model_server():
+    """Start the model server as a background process."""
+    global MODEL_SERVER_PROCESS, MODEL_SERVER_STARTED
+    
+    # Don't try to start multiple times
+    if MODEL_SERVER_STARTED:
+        return False  # Already tried, don't spam logs
+    
+    MODEL_SERVER_STARTED = True
+    
+    # Check if server is already running
+    if check_model_server():
+        debugPrint("Model server already running")
+        return True
+    
+    # Find model_server.py
+    addon_dir = os.path.dirname(__file__)
+    server_script = os.path.join(addon_dir, "model_server.py")
+    
+    if not os.path.exists(server_script):
+        debugPrint(f"Model server script not found: {server_script}")
+        debugPrint("Custom model OCR will not be available - using AI OCR only")
+        return False
+    
+    try:
+        import subprocess
+        
+        debugPrint(f"Starting model server from {server_script}...")
+        
+        # Use system Python (with TensorFlow), not Anki's Python
+        python_exe = 'python'  # Use system python from PATH
+        
+        # Start server as subprocess (hidden console window on Windows)
+        if sys.platform == 'win32':
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            
+            MODEL_SERVER_PROCESS = subprocess.Popen(
+                [python_exe, server_script],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                startupinfo=startupinfo
+            )
+        else:
+            MODEL_SERVER_PROCESS = subprocess.Popen(
+                [python_exe, server_script],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+        
+        debugPrint("Model server process started (will be ready in ~2 seconds)")
+        debugPrint("NOTE: Model server uses significant RAM. If Anki freezes, the server may be disabled.")
+        # Don't wait here - let it start in background
+        # OCR calls will check if it's ready when needed
+        return True
+            
+    except Exception as e:
+        debugPrint(f"Error starting model server: {e}")
+        debugPrint("Custom model OCR will not be available - using AI OCR only")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def stop_model_server():
+    """Stop the model server process."""
+    global MODEL_SERVER_PROCESS
+    
+    if MODEL_SERVER_PROCESS:
+        try:
+            debugPrint("Stopping model server...")
+            MODEL_SERVER_PROCESS.terminate()
+            MODEL_SERVER_PROCESS.wait(timeout=5)
+            MODEL_SERVER_PROCESS = None
+            debugPrint("Model server stopped")
+        except Exception as e:
+            debugPrint(f"Error stopping model server: {e}")
+
+
+def check_model_server():
+    """Check if custom model server is running."""
+    try:
+        request = urllib.request.Request(f"{MODEL_SERVER_URL}/health")
+        with urllib.request.urlopen(request, timeout=1) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            if result.get('model_loaded'):
+                debugPrint(f"Model server running - recognizes {result.get('num_characters', 0)} characters")
+                return True
+            else:
+                debugPrint("Model server running but no model loaded")
+                return False
+    except:
+        return False
+
+
+def predict_with_model_server(image_data_base64):
+    """
+    Predict character using model server.
+    
+    Args:
+        image_data_base64: Base64 encoded image data
+        
+    Returns:
+        tuple: (recognized_text, confidence, all_results) or (None, 0, [])
+    """
+    try:
+        # Prepare request
+        headers = {"Content-Type": "application/json"}
+        payload = {"image": image_data_base64}
+        
+        request = urllib.request.Request(
+            f"{MODEL_SERVER_URL}/predict",
+            data=json.dumps(payload).encode('utf-8'),
+            headers=headers
+        )
+        
+        with urllib.request.urlopen(request, timeout=5) as response:
+            result = json.loads(response.read().decode('utf-8'))
+        
+        if 'character' in result:
+            character = result['character']
+            confidence = result['confidence']
+            
+            # Build alternatives list
+            all_results = [(character, confidence)]
+            for alt in result.get('alternatives', []):
+                all_results.append((alt['character'], alt['confidence']))
+            
+            debugPrint(f"Model server prediction: '{character}' (confidence: {confidence:.2f})")
+            return character, confidence, all_results
+        
+        return None, 0, []
+        
+    except Exception as e:
+        debugPrint(f"Error using model server: {e}")
+        return None, 0, []
+
+
+def check_and_train_model():
+    """Check if model exists, and train if dataset has data but no model."""
+    addon_dir = os.path.dirname(__file__)
+    dataset_file = os.path.join(addon_dir, "handwriting_dataset.json")
+    
+    # Check if dataset exists and has data
+    if not os.path.exists(dataset_file):
+        debugPrint("No handwriting dataset found - collect samples first")
+        return False
+    
+    try:
+        with open(dataset_file, 'r', encoding='utf-8') as f:
+            dataset = json.load(f)
+        
+        if not dataset:
+            debugPrint("Dataset is empty - collect samples first")
+            return False
+        
+        # Count samples
+        total_samples = sum(len(samples) for samples in dataset.values())
+        debugPrint(f"Dataset has {len(dataset)} characters with {total_samples} samples")
+        
+        if total_samples < 10:
+            debugPrint("Not enough samples to train (need at least 10)")
+            return False
+        
+        # Check if model exists
+        model_path = get_latest_model_path()
+        if model_path and os.path.exists(model_path):
+            debugPrint(f"Model already exists: {model_path}")
+            
+            # Try to start model server automatically (optional - won't freeze if it fails)
+            start_model_server()
+            return True  # Return success even if server doesn't start (will fall back to AI OCR)
+        
+        # Train model
+        debugPrint("Training new model from collected samples...")
+        
+        try:
+            # Import training function
+            sys.path.insert(0, addon_dir)
+            from train_model import train_model
+            
+            # Train in background (this may take 5-15 minutes)
+            debugPrint("Starting model training - this may take several minutes...")
+            model, history, char_to_idx, idx_to_char = train_model(
+                dataset_file=dataset_file,
+                epochs=50,  # Reduced for faster training
+                batch_size=16,
+                validation_split=0.2,
+                min_samples=2,
+                use_augmentation=True
+            )
+            
+            debugPrint("Model training complete!")
+            debugPrint("Start the model server with: python model_server.py")
+            return False
+            
+        except ImportError as e:
+            debugPrint(f"Cannot train model - missing dependencies: {e}")
+            debugPrint("Install with: pip install tensorflow numpy pillow scikit-learn")
+            return False
+        except Exception as e:
+            debugPrint(f"Error during model training: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+            
+    except Exception as e:
+        debugPrint(f"Error checking dataset: {e}")
+        return False
+
 
 def recognize_handwriting(image_data_base64):
     """Recognize Japanese handwritten characters from image based on the following argument
@@ -426,6 +844,18 @@ def recognize_handwriting(image_data_base64):
     Returns:
         tuple: (recognized_text, confidence, all_results) or (None, 0, [])
     """
+    # Try model server first
+    if check_model_server():
+        debugPrint("Attempting recognition with model server...")
+        text, confidence, results = predict_with_model_server(image_data_base64)
+        if text and confidence > 0.5:  # Use custom model if confidence > 50%
+            debugPrint(f"Using model server prediction: '{text}'")
+            return text, confidence, results
+        debugPrint(f"Model server confidence too low ({confidence:.2f}), falling back to AI OCR")
+    else:
+        debugPrint("Model server not available, using AI OCR")
+    
+    # Fallback to AI OCR
     # Reload config to get latest API key and settings
     ai_config = load_ai_config()
     api_key = ai_config.get('api_key', '')
@@ -912,6 +1342,27 @@ def _handle_webview_message(handled, message, context):
             mw.reviewer.web.eval(f"window.handleOCRResult && window.handleOCRResult({result_json});")
         else:
             mw.reviewer.web.eval("window.handleOCRResult && window.handleOCRResult(null);")
+        
+        return (True, "")
+    
+    elif message.startswith("saveHandwritingSample:"):
+        # Format: saveHandwritingSample:{"character":"学","image":"data:image/png;base64,...","strokes":[...],"success":true}
+        try:
+            json_data = message.split(":", 1)[1]
+            data = json.loads(json_data)
+            
+            character = data.get('character', '')
+            image_data = data.get('image', '')
+            strokes = data.get('strokes')
+            success = data.get('success', True)
+            
+            if character and image_data:
+                add_handwriting_sample(character, image_data, strokes, success)
+                debugPrint(f"Saved handwriting sample for character: {character}")
+        except Exception as e:
+            debugPrint(f"Error saving handwriting sample: {e}")
+            import traceback
+            traceback.print_exc()
         
         return (True, "")
     
@@ -1797,6 +2248,55 @@ def inject_drawing_canvas():
                         
                         saveKanjiStats(currentKanji.char, stats);
                         updateStatsDisplay();
+                        
+                        // Save handwriting sample for ML training (if successful trace)
+                        if (strokeErrors === 0 && directionErrors === 0) {
+                            console.log('[Dataset] Attempting to save handwriting sample...');
+                            try {
+                                // Capture canvas as training data
+                                var tempCanvas = document.createElement('canvas');
+                                tempCanvas.width = canvas.width;
+                                tempCanvas.height = canvas.height;
+                                var tempCtx = tempCanvas.getContext('2d');
+                                
+                                // Fill with white background
+                                tempCtx.fillStyle = 'white';
+                                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                                
+                                // Draw all user strokes in black
+                                tempCtx.strokeStyle = 'black';
+                                tempCtx.lineWidth = 3;
+                                tempCtx.lineCap = 'round';
+                                tempCtx.lineJoin = 'round';
+                                
+                                for (var i = 0; i < userStrokes.length; i++) {
+                                    var stroke = userStrokes[i];
+                                    if (stroke.length === 0) continue;
+                                    
+                                    tempCtx.beginPath();
+                                    tempCtx.moveTo(stroke[0].x, stroke[0].y);
+                                    for (var j = 1; j < stroke.length; j++) {
+                                        tempCtx.lineTo(stroke[j].x, stroke[j].y);
+                                    }
+                                    tempCtx.stroke();
+                                }
+                                
+                                // Convert to base64
+                                var imageData = tempCanvas.toDataURL('image/png');
+                                
+                                // Save to dataset (all card view traces are successful by definition)
+                                var sampleData = {
+                                    character: currentKanji.char,
+                                    image: imageData,
+                                    strokes: userStrokes
+                                };
+                                
+                                pycmd('saveHandwritingSample:' + JSON.stringify(sampleData));
+                                console.log('[Dataset] Saved training sample for:', currentKanji.char);
+                            } catch (err) {
+                                console.error('[Dataset] Error saving sample:', err);
+                            }
+                        }
                     }
                     
                     if (AUTO_ADVANCE_KANJI && currentKanjiIndex < rawKanjiData.length - 1) {
@@ -2413,7 +2913,7 @@ class KanjiPracticeDialog(QDialog):
                 days = 1
         
         # Search for cards rated in the last N days
-        search_query = f"rated:{days}"
+        search_query = f"rated:{days} prop:reps>0"
         
         try:
             debugPrint(f"Searching with query: {search_query}")
@@ -2649,21 +3149,31 @@ class KanjiPracticeDialog(QDialog):
                     kanji_chars = ""
                     fields = card_data['fields']
                     
-                    # Look for Expression or Kanji field
-                    for field_name in ['Expression', 'Kanji', 'Word', 'Front']:
+                    # Look for Vocabulary-Kanji field
+                    for field_name in ['Vocabulary-Kanji']:
                         if field_name in fields:
                             # Extract only kanji characters (Unicode range U+4E00 to U+9FFF)
                             import re
-                            kanji_pattern = re.compile(r'[\u4E00-\u9FFF]+')
+                            kanji_pattern = re.compile(
+                                r"["
+                                r"\u3041-\u3096"  # Hiragana (ぁ to ゖ)
+                                r"\u30A0-\u30FF"  # Katakana (ァ to ヿ)
+                                r"\u4E00-\u9FCB"  # Common Kanji (一 to 鿋)
+                                r"\u3000-\u303F"  # Japanese punctuation/symbols
+                                r"\u31F0-\u31FF"  # Misc. Katakana
+                                r"\uFF5F-\uFF9F"  # Halfwidth Katakana/Punctuation
+                                r"々〆〤ー"      # Iteration marks (e.g., 時々) and prolonged sound mark
+                                r"]+"
+                            )
                             kanji_matches = kanji_pattern.findall(fields[field_name])
                             if kanji_matches:
                                 kanji_chars = ''.join(kanji_matches)
                                 break
                     
                     if not kanji_chars:
-                        debugPrint(f"No kanji found in card {card_data['card_id']}, skipping sentence generation")
+                        debugPrint(f"No Japanese characters found in card {card_data['card_id']}, skipping sentence generation")
                         # Use placeholder
-                        card_data['fields']['Sentence-English'] = "(No kanji found)"
+                        card_data['fields']['Sentence-English'] = "(No Japanese characters found)"
                         card_data['fields']['Sentence-Japanese'] = ""
                         continue
                     
@@ -2830,6 +3340,10 @@ class KanjiPracticeWindow(QDialog):
         
         # Import AnkiWebView
         from aqt.webview import AnkiWebView
+        
+        # Check and train model if needed (runs in background)
+        debugPrint("Checking for custom handwriting model...")
+        check_and_train_model()
         
         self.card_data_list = card_data_list
         self.sentence_source = sentence_source
@@ -4397,6 +4911,9 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
                 answerBox.value += recognized;
             }
             
+            // Save successful handwriting sample for training
+            window.saveHandwritingSample(recognized, true);
+            
             // Send recognition event
             pycmd('charRecognized:' + recognized);
             
@@ -4453,6 +4970,61 @@ When showing Japanese text with kanji, use furigana format: 漢字[かんじ] (k
                     status.style.display = 'block';
                 }
                 return null;
+            }
+        };
+        
+        // Save handwriting sample for training
+        window.saveHandwritingSample = function(character, success) {
+            if (!window.currentStrokes || window.currentStrokes.length === 0) {
+                console.log('[Dataset] No strokes to save');
+                return;
+            }
+            
+            try {
+                // Create a temporary canvas to capture the drawing
+                var tempCanvas = document.createElement('canvas');
+                tempCanvas.width = 300;
+                tempCanvas.height = 300;
+                var tempCtx = tempCanvas.getContext('2d');
+                
+                // Fill with white background
+                tempCtx.fillStyle = 'white';
+                tempCtx.fillRect(0, 0, 300, 300);
+                
+                // Draw all strokes in black
+                tempCtx.strokeStyle = 'black';
+                tempCtx.lineWidth = 3;
+                tempCtx.lineCap = 'round';
+                tempCtx.lineJoin = 'round';
+                
+                for (var i = 0; i < window.currentStrokes.length; i++) {
+                    var stroke = window.currentStrokes[i];
+                    if (stroke.length === 0) continue;
+                    
+                    tempCtx.beginPath();
+                    tempCtx.moveTo(stroke[0].x, stroke[0].y);
+                    for (var j = 1; j < stroke.length; j++) {
+                        tempCtx.lineTo(stroke[j].x, stroke[j].y);
+                    }
+                    tempCtx.stroke();
+                }
+                
+                // Convert to base64 image
+                var imageData = tempCanvas.toDataURL('image/png');
+                
+                // Prepare data to send
+                var sampleData = {
+                    character: character,
+                    image: imageData,
+                    strokes: window.currentStrokes,  // Include stroke data for potential fine-tuning
+                    success: success
+                };
+                
+                // Send to Python backend for storage
+                console.log('[Dataset] Saving handwriting sample for:', character, 'Success:', success);
+                pycmd('saveHandwritingSample:' + JSON.stringify(sampleData));
+            } catch (error) {
+                console.error('[Dataset] Error saving handwriting sample:', error);
             }
         };
         
@@ -5160,6 +5732,11 @@ def setup_menu():
 
 
 setup_menu()
+
+
+# Cleanup: Stop model server when Anki closes
+import atexit
+atexit.register(stop_model_server)
 
 
 # Show a message box when the add-on is loaded

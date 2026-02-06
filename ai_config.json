@@ -4,7 +4,7 @@
   "model": "",
   "instructions": "Only use grammar concepts from the textbook up to and including Section 3.4.\nGenerate sentences literally, similar to the textbook examples. Words needed to make the English sentence gramatically correct should be surrounded in parentheses ().",
   "pdf_path": "C:/Users/0ylxe/Documents/Obsidian Vaults/Writer's Notebook/Documents & Images/Textbook/Tae Kim's Guide to Learning Japanese.pdf",
-  "sentence_source": "ai",
+  "sentence_source": "fields",
   "ocr_model": "",
   "feedback_instructions": "Refer to grammar concepts from the textbook up to and including Section 3.4.",
   "use_pdf_in_sentences": true,

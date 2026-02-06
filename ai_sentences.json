@@ -1,0 +1,36 @@
+{
+  "彼女旅行好": [
+    {
+      "english": "She likes (to) travel.",
+      "japanese": "彼女は旅行が好きです。"
+    }
+  ],
+  "旅行": [
+    {
+      "english": "(I) like travel.",
+      "japanese": "旅行が好きです。"
+    }
+  ],
+  "これ": [
+    {
+      "english": "This (is) a book.",
+      "japanese": "これは ほんです。"
+    },
+    {
+      "english": "This is (a) book.",
+      "japanese": "これは ほんです。"
+    },
+    {
+      "english": "(This) is a book.",
+      "japanese": "これは ほんです。"
+    },
+    {
+      "english": "(This) is (a) book.",
+      "japanese": "これは本です。"
+    },
+    {
+      "english": "This (is) a book.",
+      "japanese": "これは本だ。"
+    }
+  ]
+}

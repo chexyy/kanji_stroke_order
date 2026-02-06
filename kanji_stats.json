@@ -261,13 +261,14 @@
     "lastAttempt": 1769308480257
   },
   "一": {
-    "totalAttempts": 6,
-    "consecutiveCorrect": 0,
-    "totalErrors": 5,
+    "totalAttempts": 13,
+    "consecutiveCorrect": 5,
+    "totalErrors": 7,
     "totalDirectionErrors": 0,
     "totalRedraws": 2,
-    "totalTime": 10618479183479,
-    "lastAttempt": 1769981405739
+    "totalTime": 23011290733066,
+    "lastAttempt": 1770402353651,
+    "lastReviewDate": "2026-02-06T18:25:53.651Z"
   },
   "人": {
     "totalAttempts": 16,
@@ -333,13 +334,14 @@
     "lastAttempt": 1769405325548
   },
   "題": {
-    "totalAttempts": 9,
+    "totalAttempts": 12,
     "consecutiveCorrect": 0,
-    "totalErrors": 43,
+    "totalErrors": 51,
     "totalDirectionErrors": 1,
     "totalRedraws": 0,
-    "totalTime": 15924328576959,
-    "lastAttempt": 1769409101482
+    "totalTime": 21235016004473,
+    "lastAttempt": 1770229411257,
+    "lastReviewDate": "2026-02-04T18:23:31.257Z"
   },
   "売": {
     "totalAttempts": 3,
@@ -594,13 +596,14 @@
     "lastAttempt": 1769625351240
   },
   "四": {
-    "totalAttempts": 7,
-    "consecutiveCorrect": 0,
-    "totalErrors": 3,
+    "totalAttempts": 21,
+    "consecutiveCorrect": 7,
+    "totalErrors": 4,
     "totalDirectionErrors": 0,
     "totalRedraws": 0,
-    "totalTime": 12386920024432,
-    "lastAttempt": 1769981180088
+    "totalTime": 37172549161654,
+    "lastAttempt": 1770402461609,
+    "lastReviewDate": "2026-02-06T18:27:41.609Z"
   },
   "角": {
     "totalAttempts": 10,
@@ -1908,13 +1911,14 @@
     "lastAttempt": 1769981307335
   },
   "二": {
-    "totalAttempts": 1,
-    "consecutiveCorrect": 1,
-    "totalErrors": 0,
+    "totalAttempts": 13,
+    "consecutiveCorrect": 0,
+    "totalErrors": 2,
     "totalDirectionErrors": 0,
     "totalRedraws": 0,
-    "totalTime": 1769981500651,
-    "lastAttempt": 1769981500651
+    "totalTime": 23014803356105,
+    "lastAttempt": 1770402451203,
+    "lastReviewDate": "2026-02-06T18:27:31.203Z"
   },
   "十": {
     "totalAttempts": 1,
@@ -2023,5 +2027,85 @@
     "totalRedraws": 0,
     "totalTime": 1770066103627,
     "lastAttempt": 1770066103627
+  },
+  "宿": {
+    "totalAttempts": 3,
+    "consecutiveCorrect": 2,
+    "totalErrors": 4,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 5310687346177,
+    "lastAttempt": 1770229390142,
+    "lastReviewDate": "2026-02-04T18:23:10.142Z"
+  },
+  "そ": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 1,
+    "totalErrors": 3,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 10622409346079,
+    "lastAttempt": 1770402467098,
+    "lastReviewDate": "2026-02-06T18:27:47.098Z"
+  },
+  "れ": {
+    "totalAttempts": 12,
+    "consecutiveCorrect": 3,
+    "totalErrors": 6,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 21244822828485,
+    "lastAttempt": 1770402530559,
+    "lastReviewDate": "2026-02-06T18:28:50.559Z"
+  },
+  "つ": {
+    "totalAttempts": 25,
+    "consecutiveCorrect": 2,
+    "totalErrors": 7,
+    "totalDirectionErrors": 1,
+    "totalRedraws": 0,
+    "totalTime": 44260048636794,
+    "lastAttempt": 1770402504366,
+    "lastReviewDate": "2026-02-06T18:28:24.366Z"
+  },
+  "三": {
+    "totalAttempts": 11,
+    "consecutiveCorrect": 3,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 19474420901375,
+    "lastAttempt": 1770402500045,
+    "lastReviewDate": "2026-02-06T18:28:20.045Z"
+  },
+  "こ": {
+    "totalAttempts": 6,
+    "consecutiveCorrect": 2,
+    "totalErrors": 1,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 10622413420551,
+    "lastAttempt": 1770402526940,
+    "lastReviewDate": "2026-02-06T18:28:46.940Z"
+  },
+  "み": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1770402516702,
+    "lastAttempt": 1770402516702,
+    "lastReviewDate": "2026-02-06T18:28:36.702Z"
+  },
+  "っ": {
+    "totalAttempts": 1,
+    "consecutiveCorrect": 1,
+    "totalErrors": 0,
+    "totalDirectionErrors": 0,
+    "totalRedraws": 0,
+    "totalTime": 1770402520065,
+    "lastAttempt": 1770402520065,
+    "lastReviewDate": "2026-02-06T18:28:40.065Z"
   }
 }
